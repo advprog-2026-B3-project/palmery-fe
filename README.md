@@ -7,6 +7,6 @@ This is a Next.js project
 To run the development server:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 It should run on localhost:3000
