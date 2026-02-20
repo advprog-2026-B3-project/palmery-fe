@@ -98,4 +98,5 @@ jobs:
         with:
           name: palmery-fe-next-build
           path: .next
+          include-hidden-files: true
           if-no-files-found: error
