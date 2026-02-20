@@ -1,0 +1,11 @@
+services:
+  palmery-fe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_MANAGE_API_BASE_URL: ${NEXT_PUBLIC_MANAGE_API_BASE_URL:-http://localhost:8081}
+        NEXT_PUBLIC_PAYMENT_API_BASE_URL: ${NEXT_PUBLIC_PAYMENT_API_BASE_URL:-http://localhost:8082}
+    container_name: palmery-fe
+    ports:
+      - "3000:3000"
