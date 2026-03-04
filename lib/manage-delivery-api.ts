@@ -107,12 +107,15 @@ export async function fetchPanenSiapAngkut(): Promise<HarvestSummary[]> {
 }
 
 export async function createPengirimanBaru(payload: {
-  supir_id: string;
-  panen_ids: string[];
+  supirId: string;
+  panenIds: string[];
 }) {
   return requestManage<Delivery>("/api/mandor/pengiriman", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      supirId: payload.supirId,
+      panenIds: payload.panenIds,
+    }),
   });
 }
 

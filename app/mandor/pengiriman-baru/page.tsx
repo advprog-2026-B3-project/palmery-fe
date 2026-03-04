@@ -95,8 +95,8 @@ export default function MandorCreatePengirimanPage() {
     try {
       setSubmitting(true);
       await createPengirimanBaru({
-        supir_id: selectedSupir,
-        panen_ids: chosenPanen,
+        supirId: selectedSupir,
+        panenIds: chosenPanen,
       });
       setToast({
         type: "success",
@@ -158,6 +158,7 @@ export default function MandorCreatePengirimanPage() {
                         <label
                           key={driver.id}
                           className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1 hover:bg-zinc-900"
+                          onClick={() => setSelectedSupir(driver.id)}
                         >
                           <span className="flex flex-col">
                             <span className="font-medium">{driver.nama}</span>
