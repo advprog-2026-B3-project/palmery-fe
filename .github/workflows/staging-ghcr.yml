@@ -1,0 +1,97 @@
+name: Staging GHCR Publish
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - name: Install + build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY || secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION || secrets.SONAR_ORGANIZATION }}
+            -Dsonar.projectName=palmery-fe
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.sources=app,lib
+            -Dsonar.exclusions=**/.next/**,**/node_modules/**
+
+      - name: SonarCloud Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          pollingTimeoutSec: 300
+
+  publish:
+    needs: sonar
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize owner name
+        id: owner
+        run: |
+          echo "value=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push main frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            NEXT_PUBLIC_MANAGE_API_BASE_URL=${{ vars.NEXT_PUBLIC_MANAGE_API_BASE_URL || 'https://manage-api.palmery.my.id' }}
+            NEXT_PUBLIC_PAYMENT_API_BASE_URL=${{ vars.NEXT_PUBLIC_PAYMENT_API_BASE_URL || 'https://payment-api.palmery.my.id' }}
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.value }}/palmery-fe:staging
+            ghcr.io/${{ steps.owner.outputs.value }}/palmery-fe:staging-${{ github.sha }}
