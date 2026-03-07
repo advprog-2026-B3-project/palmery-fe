@@ -13,6 +13,12 @@ export default function Home() {
           >
             Open Debug Page
           </Link>
+          <Link
+            href="/wallet/demo-user"
+            className="ml-3 inline-flex rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800"
+          >
+            Open Wallet Page
+          </Link>
         </div>
       </section>
     </main>
