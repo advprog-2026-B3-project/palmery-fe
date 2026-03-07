@@ -49,6 +49,7 @@ jobs:
             -Dsonar.exclusions=**/.next/**,**/node_modules/**
 
       - name: SonarCloud Quality Gate
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: SonarSource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
         env:
