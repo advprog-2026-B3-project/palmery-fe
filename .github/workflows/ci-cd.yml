@@ -21,24 +21,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: "10"
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "pnpm"
+          cache-dependency-path: palmery-fe/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10"
 
       - name: Install dependencies
+        working-directory: palmery-fe
         run: pnpm install --frozen-lockfile
 
       - name: Lint
+        working-directory: palmery-fe
         run: pnpm lint
 
       - name: Build
+        working-directory: palmery-fe
         run: pnpm build
 
       - name: SonarCloud Scan
@@ -47,7 +51,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
         with:
-          projectBaseDir: .
+          projectBaseDir: palmery-fe
           args: >
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
@@ -76,27 +80,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: "10"
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "pnpm"
+          cache-dependency-path: palmery-fe/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10"
 
       - name: Install dependencies
+        working-directory: palmery-fe
         run: pnpm install --frozen-lockfile
 
       - name: Build production app
+        working-directory: palmery-fe
         run: pnpm build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: palmery-fe-next-build
-          path: .next
+          path: palmery-fe/.next
           include-hidden-files: true
           if-no-files-found: error
