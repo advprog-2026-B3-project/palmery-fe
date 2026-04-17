@@ -25,8 +25,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "pnpm"
-          cache-dependency-path: palmery-fe/pnpm-lock.yaml
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -34,16 +32,19 @@ jobs:
           version: "10"
 
       - name: Install dependencies
-        working-directory: palmery-fe
-        run: pnpm install --frozen-lockfile
+        run: |
+          if [ -d palmery-fe ]; then cd palmery-fe; fi
+          pnpm install --frozen-lockfile
 
       - name: Lint
-        working-directory: palmery-fe
-        run: pnpm lint
+        run: |
+          if [ -d palmery-fe ]; then cd palmery-fe; fi
+          pnpm lint
 
       - name: Build
-        working-directory: palmery-fe
-        run: pnpm build
+        run: |
+          if [ -d palmery-fe ]; then cd palmery-fe; fi
+          pnpm build
 
       - name: SonarCloud Scan
         uses: sonarsource/sonarqube-scan-action@v6
@@ -51,13 +52,13 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
         with:
-          projectBaseDir: palmery-fe
+          projectBaseDir: .
           args: >
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.projectName=palmery-fe
             -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.sources=app,lib
+            -Dsonar.sources=app,lib,palmery-fe/app,palmery-fe/lib
             -Dsonar.exclusions=**/.next/**,**/node_modules/**,**/dist/**,**/out/**
 
       - name: SonarCloud Quality Gate
@@ -84,8 +85,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "pnpm"
-          cache-dependency-path: palmery-fe/pnpm-lock.yaml
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -93,17 +92,21 @@ jobs:
           version: "10"
 
       - name: Install dependencies
-        working-directory: palmery-fe
-        run: pnpm install --frozen-lockfile
+        run: |
+          if [ -d palmery-fe ]; then cd palmery-fe; fi
+          pnpm install --frozen-lockfile
 
       - name: Build production app
-        working-directory: palmery-fe
-        run: pnpm build
+        run: |
+          if [ -d palmery-fe ]; then cd palmery-fe; fi
+          pnpm build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: palmery-fe-next-build
-          path: palmery-fe/.next
+          path: |
+            .next
+            palmery-fe/.next
           include-hidden-files: true
           if-no-files-found: error
