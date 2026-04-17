@@ -58,7 +58,7 @@ jobs:
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.projectName=palmery-fe
             -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.sources=app,lib,palmery-fe/app,palmery-fe/lib
+            -Dsonar.sources=app,lib
             -Dsonar.exclusions=**/.next/**,**/node_modules/**,**/dist/**,**/out/**
 
       - name: SonarCloud Quality Gate
