@@ -42,14 +42,33 @@ export type HarvestSummary = {
 const MANAGE_BASE =
   process.env.NEXT_PUBLIC_MANAGE_API_BASE_URL ?? "http://localhost:8081";
 
+function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const fromStorage =
+    window.localStorage.getItem("access_token") ??
+    window.localStorage.getItem("token");
+  if (fromStorage && fromStorage.trim().length > 0) return fromStorage.trim();
+
+  const match = document.cookie.match(/(?:^|;\s*)access_token=([^;]+)/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
 async function requestManage<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const token = getAccessToken();
   const response = await fetch(`${MANAGE_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
-    },
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers ?? {}),
+    } as HeadersInit,
     ...init,
   });
 
@@ -142,6 +161,10 @@ export async function fetchPendingAdmin(): Promise<Delivery[]> {
   return requestManage<Delivery[]>("/api/admin/pengiriman/pending");
 }
 
+export async function fetchPengirimanAdminDetail(id: string): Promise<Delivery> {
+  return requestManage<Delivery>(`/api/admin/pengiriman/${id}`);
+}
+
 export async function approvePengirimanAdmin(id: string) {
   return requestManage<Delivery>(`/api/admin/pengiriman/${id}/approve`, {
     method: "POST",
@@ -165,4 +188,3 @@ export async function rejectPengirimanAdmin(id: string, reason: string) {
     body: JSON.stringify({ reason }),
   });
 }
-

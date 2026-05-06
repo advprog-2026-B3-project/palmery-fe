@@ -9,6 +9,7 @@ import {
   fetchDrivers,
   fetchRiwayatSupir,
 } from "@/lib/manage-delivery-api";
+import { AppShell } from "@/components/AppShell";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
 
@@ -50,117 +51,145 @@ export default function MandorSupirProfilPage() {
   }, [supirId]);
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-6 text-zinc-100 sm:px-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">Profil Supir</h1>
-            <p className="mt-1 text-sm text-zinc-300">
-              Detail supir dan riwayat pengirimannya.
-            </p>
-          </div>
-          <div className="flex gap-2 text-sm">
-            <Link
-              href="/mandor"
-              className="rounded-md bg-zinc-800 px-3 py-1.5 text-zinc-100 hover:bg-zinc-700"
-            >
-              Kembali ke Dashboard Mandor
-            </Link>
-          </div>
-        </header>
-
-        {loading ? (
-          <p className="text-sm text-zinc-300">Memuat data supir...</p>
-        ) : (
-          <>
-            <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 text-sm">
-              {driver ? (
-                <div className="space-y-1">
-                  <p className="text-zinc-200">
-                    <span className="font-semibold">Nama:</span> {driver.nama}
-                  </p>
-                  <p className="text-zinc-200">
-                    <span className="font-semibold">ID Supir:</span>{" "}
-                    {driver.id}
-                  </p>
-                  <p className="text-zinc-200">
-                    <span className="font-semibold">Kebun:</span>{" "}
-                    {driver.kebun_id}
-                  </p>
-                  <p className="text-zinc-200">
-                    <span className="font-semibold">Kontak:</span>{" "}
-                    {driver.kontak}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-zinc-400">
-                  Data supir tidak ditemukan di kebun ini.
-                </p>
-              )}
-            </section>
-
-            <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 text-sm">
-              <h2 className="text-sm font-semibold">
-                Riwayat Pengiriman Supir
-              </h2>
-              <div className="mt-3 max-h-[420px] overflow-y-auto">
-                {riwayat.length === 0 ? (
-                  <p className="text-sm text-zinc-400">
-                    Belum ada riwayat pengiriman untuk supir ini.
-                  </p>
-                ) : (
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="border-b border-zinc-800 uppercase text-zinc-400">
-                      <tr>
-                        <th className="px-3 py-2">ID Pengiriman</th>
-                        <th className="px-3 py-2">Tanggal</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Total (kg)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {riwayat.map((item) => (
-                        <tr
-                          key={item.id}
-                          className="border-b border-zinc-800 last:border-0"
-                        >
-                          <td className="px-3 py-2 font-mono text-[11px] text-zinc-200">
-                            {item.id}
-                          </td>
-                          <td className="px-3 py-2 text-[11px] text-zinc-400">
-                            {new Date(item.created_at).toLocaleString("id-ID")}
-                          </td>
-                          <td className="px-3 py-2 text-[11px]">
-                            <span className="rounded-full bg-zinc-800 px-2 py-0.5 font-mono">
-                              {item.status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-[11px] text-zinc-200">
-                            {item.total_kg}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </section>
-          </>
-        )}
-
-        {toast && (
-          <div className="fixed bottom-4 right-4 max-w-sm rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm shadow-lg">
-            <p
-              className={
-                toast.type === "success" ? "text-emerald-300" : "text-rose-300"
-              }
-            >
-              {toast.message}
-            </p>
-          </div>
-        )}
+    <AppShell section="Pengiriman" userLabel="Mandor" userInitials="M">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+            Pengguna Detail Supir
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Detail supir dan riwayat pengirimannya.
+          </p>
+        </div>
+        <Link
+          href="/mandor"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Kembali
+        </Link>
       </div>
-    </main>
+
+      {loading ? (
+        <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <p className="text-slate-500">Memuat data supir...</p>
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-6 lg:grid-cols-3">
+          <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 lg:col-span-2">
+            {driver ? (
+              <>
+                <div className="flex items-center gap-4">
+                  <div className="grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-lg font-semibold text-emerald-700">
+                    {driver.nama
+                      .split(" ")
+                      .slice(0, 2)
+                      .map((s) => s[0]?.toUpperCase())
+                      .join("")}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      {driver.nama}
+                    </h2>
+                    <p className="mt-1 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      Supir
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      {driver.kontak ?? "-"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-200 p-5">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Informasi Kendaraan
+                  </h3>
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-slate-500">ID Supir</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {driver.id}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Kebun</p>
+                      <p className="mt-1 font-semibold text-slate-900">
+                        {driver.kebun_id}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Status</p>
+                      <p className="mt-1 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Aktif
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-slate-500">Data supir tidak ditemukan.</p>
+            )}
+          </section>
+
+          <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Riwayat Pengiriman
+              </h2>
+            </div>
+            <div className="mt-4 space-y-3">
+              {riwayat.length === 0 ? (
+                <p className="text-sm text-slate-500">
+                  Belum ada riwayat pengiriman.
+                </p>
+              ) : (
+                riwayat.slice(0, 8).map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl border border-slate-200 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {new Date(item.created_at).toLocaleDateString("id-ID")}
+                        </p>
+                        <p className="mt-0.5 font-mono text-[11px] text-slate-500">
+                          {item.id}
+                        </p>
+                      </div>
+                      <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        {item.status}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm">
+                      <div>
+                        <p className="text-xs text-slate-500">Berat</p>
+                        <p className="font-semibold text-slate-900">
+                          {item.total_kg} kg
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-500">Dari</p>
+                        <p className="font-semibold text-slate-900">
+                          {item.kebun_id}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 max-w-sm rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-lg">
+          <p className={toast.type === "success" ? "text-emerald-700" : "text-rose-700"}>
+            {toast.message}
+          </p>
+        </div>
+      )}
+    </AppShell>
   );
 }
-

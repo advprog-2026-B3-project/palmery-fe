@@ -9,6 +9,7 @@ import {
   fetchDrivers,
   fetchPanenSiapAngkut,
 } from "@/lib/manage-delivery-api";
+import { AppShell } from "@/components/AppShell";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
 
@@ -116,95 +117,85 @@ export default function MandorCreatePengirimanPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-6 text-zinc-100 sm:px-8">
-      <div className="mx-auto max-w-5xl space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">Buat Pengiriman Baru</h1>
-            <p className="mt-1 text-sm text-zinc-300">
-              Pilih supir dan panen siap angkut. Total berat maksimal 400kg.
-            </p>
-          </div>
-          <div className="flex gap-2 text-sm">
-            <Link
-              href="/mandor"
-              className="rounded-md bg-zinc-800 px-3 py-1.5 text-zinc-100 hover:bg-zinc-700"
-            >
-              Kembali ke Dashboard Mandor
-            </Link>
-          </div>
-        </header>
+    <AppShell section="Pengiriman" userLabel="Mandor" userInitials="M">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
+            Buat Pengiriman Baru
+          </h1>
+        </div>
+        <Link
+          href="/mandor"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Kembali
+        </Link>
+      </div>
 
-        <section className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 text-sm">
-          {loading ? (
-            <p className="text-zinc-300">Memuat data supir dan panen...</p>
-          ) : (
-            <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <h2 className="text-sm font-semibold">Pilih Supir</h2>
-                  <input
-                    type="text"
-                    value={driverSearch}
-                    onChange={(event) => setDriverSearch(event.target.value)}
-                    placeholder="Cari nama supir"
-                    className="mt-2 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100"
-                  />
-                  <div className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 text-xs">
-                    {filteredDrivers.length === 0 ? (
-                      <p className="text-zinc-500">Supir tidak ditemukan.</p>
-                    ) : (
-                      filteredDrivers.map((driver) => (
-                        <label
-                          key={driver.id}
-                          className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1 hover:bg-zinc-900"
-                          onClick={() => setSelectedSupir(driver.id)}
-                        >
-                          <span className="flex flex-col">
-                            <span className="font-medium">{driver.nama}</span>
-                            <span className="text-[11px] text-zinc-400">
-                              {driver.id} · Kebun {driver.kebun_id}
-                            </span>
-                          </span>
-                          <input
-                            type="radio"
-                            name="supir"
-                            value={driver.id}
-                            checked={selectedSupir === driver.id}
-                            onChange={() => setSelectedSupir(driver.id)}
-                          />
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </div>
+      <section className="mx-auto mt-6 max-w-3xl rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <p className="text-sm text-slate-500">
+          Atur pengiriman hasil panen ke pabrik.
+        </p>
 
-                <div>
-                  <h2 className="text-sm font-semibold">Panen Siap Angkut</h2>
-                  <p className="mt-1 text-xs text-zinc-400">
-                    Centang panen yang akan dimasukkan ke pengiriman ini.
-                  </p>
-                  <div className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-2 text-xs">
-                    {panen.length === 0 ? (
-                      <p className="text-zinc-500">
-                        Belum ada panen berstatus &quot;Siap Angkut&quot;.
-                      </p>
-                    ) : (
-                      panen.map((p) => (
-                        <label
-                          key={p.id}
-                          className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1 hover:bg-zinc-900"
-                        >
-                          <span className="flex flex-col">
-                            <span className="font-medium">
-                              {p.id} · {p.berat_kg} kg
-                            </span>
-                            <span className="text-[11px] text-zinc-400">
-                              Kebun {p.kebun_id}
-                            </span>
-                          </span>
+        {loading ? (
+          <p className="mt-6 text-slate-500">Memuat data supir dan panen...</p>
+        ) : (
+          <>
+            <div className="mt-6">
+              <label className="text-sm font-medium text-slate-700">
+                Supir Truk
+              </label>
+              <div className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <select
+                  value={selectedSupir}
+                  onChange={(e) => setSelectedSupir(e.target.value)}
+                  className="w-full bg-transparent text-sm text-slate-700 outline-none"
+                >
+                  <option value="">Pilih Supir</option>
+                  {filteredDrivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nama} ({d.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-2">
+                <input
+                  type="text"
+                  value={driverSearch}
+                  onChange={(event) => setDriverSearch(event.target.value)}
+                  placeholder="Cari nama supir"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-sm font-medium text-slate-700">
+                  Daftar Hasil Panen
+                </label>
+                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                  Max 400 kg
+                </span>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-slate-200 p-3">
+                <div className="max-h-72 space-y-2 overflow-y-auto">
+                  {panen.length === 0 ? (
+                    <p className="px-2 py-8 text-center text-sm text-slate-500">
+                      Belum ada panen berstatus Siap Angkut.
+                    </p>
+                  ) : (
+                    panen.map((p) => (
+                      <label
+                        key={p.id}
+                        className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:bg-slate-50"
+                      >
+                        <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
+                            className="h-5 w-5 accent-[var(--palmery-green)]"
                             checked={Boolean(selectedPanen[p.id])}
                             onChange={(event) =>
                               setSelectedPanen((prev) => ({
@@ -213,52 +204,111 @@ export default function MandorCreatePengirimanPage() {
                               }))
                             }
                           />
-                        </label>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between border-t border-zinc-800 pt-4 text-sm">
-                <div>
-                  <p className="text-zinc-300">
-                    Total Berat Terpilih:{" "}
-                    <span className="font-semibold">{totalKg} kg</span>
-                  </p>
-                  {totalKg > 400 && (
-                    <p className="mt-1 text-xs text-rose-300">
-                      Total melebihi batas maksimum 400kg. Kurangi pilihan
-                      panen.
-                    </p>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {p.id}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Kebun {p.kebun_id}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {p.berat_kg} kg
+                        </p>
+                      </label>
+                    ))
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={submitting}
-                  className="rounded-md bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
-                >
-                  {submitting ? "Menyimpan..." : "Buat Pengiriman"}
-                </button>
               </div>
-            </>
-          )}
-        </section>
+            </div>
 
-        {toast && (
-          <div className="fixed bottom-4 right-4 max-w-sm rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm shadow-lg">
-            <p
-              className={
-                toast.type === "success" ? "text-emerald-300" : "text-rose-300"
-              }
+            <div
+              className={`mt-6 rounded-2xl border p-5 ${
+                totalKg > 400
+                  ? "border-rose-300 bg-rose-50"
+                  : "border-emerald-300 bg-emerald-50"
+              }`}
             >
-              {toast.message}
-            </p>
-          </div>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Total Berat Terpilih
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {Object.values(selectedPanen).filter(Boolean).length} hasil
+                    panen
+                  </p>
+                  <p className="mt-2 text-sm text-slate-700">
+                    {totalKg > 400
+                      ? "Melebihi batas maksimum 400 kg"
+                      : "Masih dalam batas maksimum 400 kg"}
+                  </p>
+                </div>
+                <p className="text-3xl font-semibold text-slate-900">
+                  {totalKg} kg
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <p className="text-sm font-semibold text-slate-900">
+                Status Pengiriman
+              </p>
+              <div className="mt-4 grid grid-cols-3 items-center gap-3 text-center text-xs text-slate-500">
+                <div className="space-y-2">
+                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[var(--palmery-green)] text-white">
+                    1
+                  </div>
+                  <p className="font-semibold text-[var(--palmery-green)]">
+                    Memuat
+                  </p>
+                  <p>Sedang berlangsung</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
+                    2
+                  </div>
+                  <p className="font-semibold text-slate-600">Mengirim</p>
+                  <p>Belum dimulai</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
+                    3
+                  </div>
+                  <p className="font-semibold text-slate-600">Tiba</p>
+                  <p>Belum dimulai</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 flex items-center justify-end gap-3">
+              <Link
+                href="/mandor"
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Batal
+              </Link>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="rounded-xl bg-[var(--palmery-green)] px-6 py-3 text-sm font-semibold text-white shadow-sm hover:brightness-110 disabled:opacity-60"
+              >
+                {submitting ? "Menyimpan..." : "Buat Pengiriman"}
+              </button>
+            </div>
+          </>
         )}
-      </div>
-    </main>
+      </section>
+
+      {toast && (
+        <div className="fixed bottom-4 right-4 max-w-sm rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-lg">
+          <p className={toast.type === "success" ? "text-emerald-700" : "text-rose-700"}>
+            {toast.message}
+          </p>
+        </div>
+      )}
+    </AppShell>
   );
 }
-

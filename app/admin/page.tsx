@@ -1,22 +1,69 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Delivery,
-  approvePengirimanAdmin,
   fetchPendingAdmin,
-  partialRejectPengirimanAdmin,
-  rejectPengirimanAdmin,
 } from "@/lib/manage-delivery-api";
+import Link from "next/link";
+import { AppShell } from "@/components/AppShell";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
+
+function statusBadge(status: string) {
+  switch (status) {
+    case "MENGIRIM":
+      return { label: "Mengirim", dot: "bg-blue-500", text: "text-blue-600" };
+    case "TIBA_DI_TUJUAN":
+      return { label: "Tiba", dot: "bg-emerald-500", text: "text-emerald-600" };
+    case "MEMUAT":
+      return { label: "Memuat", dot: "bg-amber-500", text: "text-amber-600" };
+    default:
+      return { label: status, dot: "bg-slate-400", text: "text-slate-600" };
+  }
+}
+
+function approvalMandor(status: string) {
+  if (status === "REJECTED_MANDOR") return { label: "Rejected", tone: "red" as const };
+  if (
+    status === "PENDING_ADMIN_REVIEW" ||
+    status === "APPROVED_ADMIN" ||
+    status === "REJECTED_ADMIN" ||
+    status === "PARTIAL_REJECTED_ADMIN"
+  ) {
+    return { label: "Approved", tone: "green" as const };
+  }
+  if (status === "PENDING_MANDOR_REVIEW") return { label: "Pending", tone: "amber" as const };
+  return { label: "Pending", tone: "amber" as const };
+}
+
+function approvalAdmin(status: string) {
+  if (status === "APPROVED_ADMIN") return { label: "Approved", tone: "green" as const };
+  if (status === "REJECTED_ADMIN") return { label: "Rejected", tone: "red" as const };
+  if (status === "PARTIAL_REJECTED_ADMIN") return { label: "Parsial", tone: "amber" as const };
+  if (status === "PENDING_ADMIN_REVIEW") return { label: "Pending", tone: "amber" as const };
+  return { label: "Pending", tone: "amber" as const };
+}
+
+function toneClasses(tone: "green" | "amber" | "red") {
+  switch (tone) {
+    case "green":
+      return "text-emerald-600";
+    case "red":
+      return "text-rose-600";
+    case "amber":
+    default:
+      return "text-amber-600";
+  }
+}
 
 export default function AdminDashboardPage() {
   const [data, setData] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(false);
-  const [actingId, setActingId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
+  const [date, setDate] = useState("");
+  const [mandor, setMandor] = useState("");
+  const [applied, setApplied] = useState({ date: "", mandor: "" });
 
   async function load() {
     setLoading(true);
@@ -40,232 +87,166 @@ export default function AdminDashboardPage() {
     load();
   }, []);
 
-  async function handleApprove(id: string) {
-    const ok = window.confirm(
-      `Setujui pengiriman ${id} dengan berat penuh (kg total)?`,
-    );
-    if (!ok) return;
-    try {
-      setActingId(id);
-      await approvePengirimanAdmin(id);
-      setToast({
-        type: "success",
-        message: "Pengiriman berhasil di-approve.",
-      });
-      await load();
-    } catch (error) {
-      setToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Gagal approve pengiriman.",
-      });
-    } finally {
-      setActingId(null);
-    }
-  }
-
-  async function handlePartialReject(item: Delivery) {
-    const kgStr = window.prompt(
-      `Masukkan kg yang diakui (maks ${item.total_kg} kg):`,
-      String(item.total_kg),
-    );
-    if (!kgStr) return;
-    const kg = Number(kgStr);
-    if (!Number.isFinite(kg) || kg <= 0) {
-      setToast({
-        type: "error",
-        message: "Input kg tidak valid.",
-      });
-      return;
-    }
-    const reason = window.prompt("Alasan partial reject: (wajib diisi)", "");
-    if (!reason) {
-      setToast({
-        type: "error",
-        message: "Alasan wajib diisi untuk partial reject.",
-      });
-      return;
-    }
-    try {
-      setActingId(item.id);
-      await partialRejectPengirimanAdmin(item.id, kg, reason);
-      setToast({
-        type: "success",
-        message: "Pengiriman berhasil di-partial reject.",
-      });
-      await load();
-    } catch (error) {
-      setToast({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Gagal partial reject pengiriman.",
-      });
-    } finally {
-      setActingId(null);
-    }
-  }
-
-  async function handleReject(id: string) {
-    const reason = window.prompt("Alasan reject penuh: (wajib diisi)", "");
-    if (!reason) {
-      setToast({
-        type: "error",
-        message: "Alasan wajib diisi untuk reject.",
-      });
-      return;
-    }
-    try {
-      setActingId(id);
-      await rejectPengirimanAdmin(id, reason);
-      setToast({
-        type: "success",
-        message: "Pengiriman berhasil di-reject.",
-      });
-      await load();
-    } catch (error) {
-      setToast({
-        type: "error",
-        message:
-          error instanceof Error ? error.message : "Gagal reject pengiriman.",
-      });
-    } finally {
-      setActingId(null);
-    }
-  }
+  const mandorOptions = Array.from(new Set(data.map((d) => d.mandor_id))).sort();
+  const filtered = data.filter((item) => {
+    const matchMandor = applied.mandor ? item.mandor_id === applied.mandor : true;
+    const matchDate = applied.date
+      ? new Date(item.created_at).toISOString().slice(0, 10) === applied.date
+      : true;
+    return matchMandor && matchDate;
+  });
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-6 text-zinc-100 sm:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold">Dashboard Admin</h1>
-            <p className="mt-1 text-sm text-zinc-300">
-              Pengiriman yang menunggu review admin pusat.
-            </p>
-          </div>
-          <div className="flex gap-2 text-sm">
-            <Link
-              href="/"
-              className="rounded-md border border-zinc-700 px-3 py-1.5 text-zinc-200 hover:bg-zinc-900"
-            >
-              Kembali ke Beranda
-            </Link>
-          </div>
-        </header>
+    <AppShell section="Pengiriman" userLabel="Admin" userInitials="A">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-semibold tracking-tight text-slate-900">
+            Daftar Pengiriman
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Pengiriman yang menunggu review admin pusat.
+          </p>
+        </div>
+        <Link
+          href="/mandor/pengiriman-baru"
+          className="inline-flex items-center gap-2 rounded-lg bg-[var(--palmery-green)] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:brightness-110"
+        >
+          <span className="text-lg leading-none">+</span> Tambah Pengiriman
+        </Link>
+      </div>
 
-        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">
-              Pengiriman Pending Review Admin
-            </h2>
-            <button
-              type="button"
-              onClick={load}
-              className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
-            >
-              Muat Ulang
-            </button>
+      <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="min-w-[260px]">
+            <label className="text-sm font-medium text-slate-700">Tanggal</label>
+            <div className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full text-sm text-slate-700 outline-none"
+              />
+            </div>
           </div>
+          <div className="min-w-[260px]">
+            <label className="text-sm font-medium text-slate-700">
+              Nama Mandor
+            </label>
+            <div className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <select
+                value={mandor}
+                onChange={(e) => setMandor(e.target.value)}
+                className="w-full bg-transparent text-sm text-slate-700 outline-none"
+              >
+                <option value="">Semua Mandor</option>
+                {mandorOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setApplied({ date, mandor })}
+            className="inline-flex items-center gap-2 rounded-xl bg-[var(--palmery-green)] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:brightness-110"
+          >
+            Filter
+          </button>
+          <button
+            type="button"
+            onClick={load}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Muat Ulang
+          </button>
+        </div>
 
-          {loading ? (
-            <p className="text-sm text-zinc-300">
-              Memuat pengiriman pending...
-            </p>
-          ) : data.length === 0 ? (
-            <p className="text-sm text-zinc-400">
-              Tidak ada pengiriman yang menunggu review admin.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-zinc-800 text-xs uppercase text-zinc-400">
-                  <tr>
-                    <th className="px-3 py-2">ID Pengiriman</th>
-                    <th className="px-3 py-2">Supir</th>
-                    <th className="px-3 py-2">Mandor</th>
-                    <th className="px-3 py-2">Total (kg)</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Dibuat</th>
-                    <th className="px-3 py-2 text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="border-b border-zinc-800 last:border-0"
-                    >
-                      <td className="px-3 py-2 font-mono text-xs text-zinc-200">
-                        {item.id}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-zinc-300">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="px-6 py-4 font-semibold">Nama Supir</th>
+                <th className="px-6 py-4 font-semibold">Total Kg</th>
+                <th className="px-6 py-4 font-semibold">Status Kirim</th>
+                <th className="px-6 py-4 font-semibold">Approval Mandor</th>
+                <th className="px-6 py-4 font-semibold">Approval Admin</th>
+                <th className="px-6 py-4 font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {loading ? (
+                <tr>
+                  <td className="px-6 py-6 text-slate-500" colSpan={6}>
+                    Memuat pengiriman...
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td className="px-6 py-6 text-slate-500" colSpan={6}>
+                    Tidak ada pengiriman yang cocok dengan filter.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((item) => {
+                  const status = statusBadge(item.status);
+                  const mandorAppr = approvalMandor(item.status);
+                  const adminAppr = approvalAdmin(item.status);
+                  return (
+                    <tr key={item.id}>
+                      <td className="px-6 py-5 text-slate-900">
                         {item.supir_id}
                       </td>
-                      <td className="px-3 py-2 text-xs text-zinc-300">
-                        {item.mandor_id}
+                      <td className="px-6 py-5 font-semibold text-slate-900">
+                        {item.total_kg} kg
                       </td>
-                      <td className="px-3 py-2 text-xs text-zinc-200">
-                        {item.total_kg}
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        <span className="rounded-full bg-zinc-800 px-2 py-0.5 font-mono">
-                          {item.status}
+                      <td className="px-6 py-5">
+                        <span className={`inline-flex items-center gap-2 ${status.text}`}>
+                          <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                          {status.label}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-xs text-zinc-400">
-                        {new Date(item.created_at).toLocaleString("id-ID")}
+                      <td className="px-6 py-5">
+                        <span
+                          className={`inline-flex items-center gap-2 ${toneClasses(mandorAppr.tone)}`}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${mandorAppr.tone === "green" ? "bg-emerald-500" : mandorAppr.tone === "red" ? "bg-rose-500" : "bg-amber-500"}`} />
+                          {mandorAppr.label}
+                        </span>
                       </td>
-                      <td className="px-3 py-2 text-right text-xs">
-                        <div className="flex justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(item.id)}
-                            disabled={actingId === item.id}
-                            className="rounded-md bg-emerald-600 px-2 py-1 font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePartialReject(item)}
-                            disabled={actingId === item.id}
-                            className="rounded-md bg-amber-600 px-2 py-1 font-medium text-white hover:bg-amber-500 disabled:opacity-60"
-                          >
-                            Parsial
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleReject(item.id)}
-                            disabled={actingId === item.id}
-                            className="rounded-md bg-rose-600 px-2 py-1 font-medium text-white hover:bg-rose-500 disabled:opacity-60"
-                          >
-                            Reject
-                          </button>
-                        </div>
+                      <td className="px-6 py-5">
+                        <span
+                          className={`inline-flex items-center gap-2 ${toneClasses(adminAppr.tone)}`}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${adminAppr.tone === "green" ? "bg-emerald-500" : adminAppr.tone === "red" ? "bg-rose-500" : "bg-amber-500"}`} />
+                          {adminAppr.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <Link
+                          href={`/admin/pengiriman/${item.id}`}
+                          className="inline-flex items-center gap-2 rounded-lg bg-[var(--palmery-green)] px-4 py-2 text-sm font-semibold text-white hover:brightness-110"
+                        >
+                          Detail
+                        </Link>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        {toast && (
-          <div className="fixed bottom-4 right-4 max-w-sm rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm shadow-lg">
-            <p
-              className={
-                toast.type === "success" ? "text-emerald-300" : "text-rose-300"
-              }
-            >
-              {toast.message}
-            </p>
-          </div>
-        )}
-      </div>
-    </main>
+      {toast && (
+        <div className="fixed bottom-4 right-4 max-w-sm rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-lg">
+          <p className={toast.type === "success" ? "text-emerald-700" : "text-rose-700"}>
+            {toast.message}
+          </p>
+        </div>
+      )}
+    </AppShell>
   );
 }
-
