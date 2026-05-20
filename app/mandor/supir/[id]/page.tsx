@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
-  Delivery,
-  Driver,
+  Pengiriman,
+  SupirDriver,
   fetchDrivers,
-  fetchRiwayatSupir,
-} from "@/lib/manage-delivery-api";
+  fetchPengirimanBySupirForMandor,
+} from "@/lib/manage-pengiriman-api";
 import { AppShell } from "@/components/AppShell";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
@@ -16,8 +16,8 @@ type ToastState = { type: "success" | "error"; message: string } | null;
 export default function MandorSupirProfilPage() {
   const params = useParams<{ id: string }>();
   const supirId = params?.id ?? "";
-  const [driver, setDriver] = useState<Driver | null>(null);
-  const [riwayat, setRiwayat] = useState<Delivery[]>([]);
+  const [driver, setDriver] = useState<SupirDriver | null>(null);
+  const [riwayat, setRiwayat] = useState<Pengiriman[]>([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
 
@@ -28,13 +28,13 @@ export default function MandorSupirProfilPage() {
       try {
         const [drivers, history] = await Promise.all([
           fetchDrivers(""),
-          fetchRiwayatSupir({
+          fetchPengirimanBySupirForMandor(supirId, {
             from: "2000-01-01",
             to: new Date().toISOString().slice(0, 10),
           }),
         ]);
         setDriver(drivers.find((d) => d.id === supirId) ?? null);
-        setRiwayat(history.filter((d) => d.supir_id === supirId));
+        setRiwayat(history);
       } catch (error) {
         setToast({
           type: "error",
@@ -94,7 +94,7 @@ export default function MandorSupirProfilPage() {
                       Supir
                     </p>
                     <p className="mt-2 text-sm text-slate-500">
-                      {driver.kontak ?? "-"}
+                      {driver.kontak || "-"}
                     </p>
                   </div>
                 </div>
@@ -116,13 +116,6 @@ export default function MandorSupirProfilPage() {
                         {driver.kebun_id}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-xs text-slate-500">Status</p>
-                      <p className="mt-1 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                        Aktif
-                      </p>
-                    </div>
                   </div>
                 </div>
               </>
@@ -132,11 +125,9 @@ export default function MandorSupirProfilPage() {
           </section>
 
           <section className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900">
-                Riwayat Pengiriman
-              </h2>
-            </div>
+            <h2 className="text-sm font-semibold text-slate-900">
+              Riwayat Pengiriman
+            </h2>
             <div className="mt-4 space-y-3">
               {riwayat.length === 0 ? (
                 <p className="text-sm text-slate-500">
@@ -169,12 +160,17 @@ export default function MandorSupirProfilPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-slate-500">Dari</p>
+                        <p className="text-xs text-slate-500">Kebun</p>
                         <p className="font-semibold text-slate-900">
                           {item.kebun_id}
                         </p>
                       </div>
                     </div>
+                    {item.rejected_reason && (
+                      <p className="mt-2 text-xs text-rose-600">
+                        Alasan: {item.rejected_reason}
+                      </p>
+                    )}
                   </div>
                 ))
               )}

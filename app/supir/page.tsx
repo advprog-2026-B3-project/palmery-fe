@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  Delivery,
-  DeliveryStatus,
+  Pengiriman,
+  PengirimanStatus,
   fetchPengirimanAktifSupir,
   updateStatusSupir,
-} from "@/lib/manage-delivery-api";
+} from "@/lib/manage-pengiriman-api";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
 
-function nextStatus(status: DeliveryStatus | string): DeliveryStatus | null {
+function nextStatus(status: PengirimanStatus | string): PengirimanStatus | null {
   switch (status) {
     case "MEMUAT":
       return "MENGIRIM";
@@ -23,7 +23,7 @@ function nextStatus(status: DeliveryStatus | string): DeliveryStatus | null {
 }
 
 export default function SupirDashboardPage() {
-  const [data, setData] = useState<Delivery[]>([]);
+  const [data, setData] = useState<Pengiriman[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState>(null);
@@ -50,7 +50,7 @@ export default function SupirDashboardPage() {
     load();
   }, []);
 
-  async function handleUpdateStatus(item: Delivery) {
+  async function handleUpdateStatus(item: Pengiriman) {
     const target = nextStatus(item.status);
     if (!target) return;
 
@@ -217,4 +217,3 @@ export default function SupirDashboardPage() {
     </main>
   );
 }
-

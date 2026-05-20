@@ -3,18 +3,18 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Driver,
+  SupirDriver,
   HarvestSummary,
   createPengirimanBaru,
   fetchDrivers,
   fetchPanenSiapAngkut,
-} from "@/lib/manage-delivery-api";
+} from "@/lib/manage-pengiriman-api";
 import { AppShell } from "@/components/AppShell";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
 
 export default function MandorCreatePengirimanPage() {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [drivers, setDrivers] = useState<SupirDriver[]>([]);
   const [driverSearch, setDriverSearch] = useState("");
   const [selectedSupir, setSelectedSupir] = useState<string>("");
   const [panen, setPanen] = useState<HarvestSummary[]>([]);
@@ -51,12 +51,22 @@ export default function MandorCreatePengirimanPage() {
     loadInitial();
   }, []);
 
-  const filteredDrivers = useMemo(() => {
-    if (!driverSearch) return drivers;
-    return drivers.filter((d) =>
-      d.nama.toLowerCase().includes(driverSearch.toLowerCase()),
-    );
-  }, [drivers, driverSearch]);
+  useEffect(() => {
+    async function searchDrivers() {
+      try {
+        const driverList = await fetchDrivers(driverSearch);
+        setDrivers(driverList);
+      } catch {
+        // keep previous list on search failure
+      }
+    }
+    const timer = setTimeout(() => {
+      void searchDrivers();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [driverSearch]);
+
+  const filteredDrivers = useMemo(() => drivers, [drivers]);
 
   const totalKg = useMemo(
     () =>
@@ -248,37 +258,6 @@ export default function MandorCreatePengirimanPage() {
                 <p className="text-3xl font-semibold text-slate-900">
                   {totalKg} kg
                 </p>
-              </div>
-            </div>
-
-            <div className="mt-8">
-              <p className="text-sm font-semibold text-slate-900">
-                Status Pengiriman
-              </p>
-              <div className="mt-4 grid grid-cols-3 items-center gap-3 text-center text-xs text-slate-500">
-                <div className="space-y-2">
-                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[var(--palmery-green)] text-white">
-                    1
-                  </div>
-                  <p className="font-semibold text-[var(--palmery-green)]">
-                    Memuat
-                  </p>
-                  <p>Sedang berlangsung</p>
-                </div>
-                <div className="space-y-2">
-                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
-                    2
-                  </div>
-                  <p className="font-semibold text-slate-600">Mengirim</p>
-                  <p>Belum dimulai</p>
-                </div>
-                <div className="space-y-2">
-                  <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-slate-500">
-                    3
-                  </div>
-                  <p className="font-semibold text-slate-600">Tiba</p>
-                  <p>Belum dimulai</p>
-                </div>
               </div>
             </div>
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Delivery, fetchRiwayatSupir } from "@/lib/manage-delivery-api";
+import { Pengiriman, fetchRiwayatSupir } from "@/lib/manage-pengiriman-api";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
 
@@ -19,7 +19,7 @@ export default function SupirRiwayatPage() {
   const initialRange = todayRange();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
-  const [data, setData] = useState<Delivery[]>([]);
+  const [data, setData] = useState<Pengiriman[]>([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
 
@@ -142,7 +142,9 @@ export default function SupirRiwayatPage() {
                         <td className="px-3 py-2 text-xs text-zinc-200">
                           {item.status === "PARTIAL_REJECTED_ADMIN"
                             ? item.recognized_kg ?? "-"
-                            : "-"}
+                            : item.status === "APPROVED_ADMIN"
+                              ? item.total_kg
+                              : "-"}
                         </td>
                         <td className="px-3 py-2 text-xs text-zinc-300">
                           {item.status === "REJECTED_ADMIN" ||
@@ -175,4 +177,3 @@ export default function SupirRiwayatPage() {
     </main>
   );
 }
-

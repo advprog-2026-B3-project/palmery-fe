@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  Delivery,
+  Pengiriman,
+  approvePengirimanMandor,
   fetchPengirimanAktifMandor,
-} from "@/lib/manage-delivery-api";
+  rejectPengirimanMandor,
+} from "@/lib/manage-pengiriman-api";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
 
 export default function MandorDashboardPage() {
-  const [data, setData] = useState<Delivery[]>([]);
+  const [data, setData] = useState<Pengiriman[]>([]);
   const [loading, setLoading] = useState(false);
+  const [actingId, setActingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [toast, setToast] = useState<ToastState>(null);
@@ -41,6 +44,44 @@ export default function MandorDashboardPage() {
     }, 8000);
     return () => clearInterval(interval);
   }, []);
+
+  async function handleApprove(item: Pengiriman) {
+    const ok = window.confirm(`Setujui pengiriman ${item.id}?`);
+    if (!ok) return;
+    try {
+      setActingId(item.id);
+      await approvePengirimanMandor(item.id);
+      setToast({ type: "success", message: "Pengiriman disetujui." });
+      await load();
+    } catch (error) {
+      setToast({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Gagal menyetujui pengiriman.",
+      });
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  async function handleReject(item: Pengiriman) {
+    const reason = window.prompt("Alasan penolakan (wajib):", "");
+    if (!reason?.trim()) return;
+    try {
+      setActingId(item.id);
+      await rejectPengirimanMandor(item.id, reason.trim());
+      setToast({ type: "success", message: "Pengiriman ditolak." });
+      await load();
+    } catch (error) {
+      setToast({
+        type: "error",
+        message:
+          error instanceof Error ? error.message : "Gagal menolak pengiriman.",
+      });
+    } finally {
+      setActingId(null);
+    }
+  }
 
   const filtered = data.filter((item) => {
     const matchSupir = search
@@ -141,6 +182,7 @@ export default function MandorDashboardPage() {
                       <th className="px-3 py-2">Total (kg)</th>
                       <th className="px-3 py-2">Status</th>
                       <th className="px-3 py-2">Dibuat</th>
+                      <th className="px-3 py-2 text-right">Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -171,6 +213,30 @@ export default function MandorDashboardPage() {
                         <td className="px-3 py-2 text-xs text-zinc-400">
                           {new Date(item.created_at).toLocaleString("id-ID")}
                         </td>
+                        <td className="px-3 py-2 text-right text-xs">
+                          {item.status === "PENDING_MANDOR_REVIEW" ? (
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(item)}
+                                disabled={actingId === item.id}
+                                className="rounded-md bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-500 disabled:opacity-60"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleReject(item)}
+                                disabled={actingId === item.id}
+                                className="rounded-md bg-rose-700 px-2 py-1 text-white hover:bg-rose-600 disabled:opacity-60"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-zinc-500">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -195,4 +261,3 @@ export default function MandorDashboardPage() {
     </main>
   );
 }
-

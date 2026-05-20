@@ -4,34 +4,28 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import {
-  Delivery,
+  Pengiriman,
   approvePengirimanAdmin,
   fetchPengirimanAdminDetail,
   partialRejectPengirimanAdmin,
   rejectPengirimanAdmin,
-} from "@/lib/manage-delivery-api";
+} from "@/lib/manage-pengiriman-api";
 import { AppShell } from "@/components/AppShell";
 
 type ToastState = { type: "success" | "error"; message: string } | null;
 
 function approvalMandor(status: string) {
   if (status === "REJECTED_MANDOR") return { label: "Rejected", tone: "red" as const };
-  if (
-    status === "PENDING_ADMIN_REVIEW" ||
-    status === "APPROVED_ADMIN" ||
-    status === "REJECTED_ADMIN" ||
-    status === "PARTIAL_REJECTED_ADMIN"
-  ) {
+  if (status === "PENDING_ADMIN_REVIEW") {
     return { label: "Approved", tone: "green" as const };
   }
-  if (status === "PENDING_MANDOR_REVIEW") return { label: "Pending", tone: "amber" as const };
   return { label: "Pending", tone: "amber" as const };
 }
 
 function approvalAdmin(status: string) {
   if (status === "APPROVED_ADMIN") return { label: "Approved", tone: "green" as const };
   if (status === "REJECTED_ADMIN") return { label: "Rejected", tone: "red" as const };
-  if (status === "PARTIAL_REJECTED_ADMIN") return { label: "Pending", tone: "amber" as const };
+  if (status === "PARTIAL_REJECTED_ADMIN") return { label: "Parsial", tone: "amber" as const };
   if (status === "PENDING_ADMIN_REVIEW") return { label: "Pending", tone: "amber" as const };
   return { label: "Pending", tone: "amber" as const };
 }
@@ -47,7 +41,7 @@ function toneDot(tone: "green" | "amber" | "red") {
 export default function AdminPengirimanDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
-  const [data, setData] = useState<Delivery | null>(null);
+  const [data, setData] = useState<Pengiriman | null>(null);
   const [loading, setLoading] = useState(false);
   const [acting, setActing] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
@@ -84,6 +78,8 @@ export default function AdminPengirimanDetailPage() {
     () => (data ? approvalAdmin(data.status) : null),
     [data],
   );
+
+  const canAct = data?.status === "PENDING_ADMIN_REVIEW";
 
   async function handleApprove() {
     if (!data) return;
@@ -288,34 +284,41 @@ export default function AdminPengirimanDetailPage() {
                       {adminAppr.label}
                     </span>
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Menunggu approval</p>
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={handleApprove}
-                disabled={acting}
-                className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
-              >
-                Approve Pengiriman
-              </button>
-              <button
-                type="button"
-                onClick={handlePartial}
-                disabled={acting}
-                className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
-              >
-                Partial Reject
-              </button>
-              <button
-                type="button"
-                onClick={handleRejectFull}
-                disabled={acting}
-                className="w-full rounded-xl border border-rose-300 bg-white px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-60"
-              >
-                Reject Pengiriman
-              </button>
+              {canAct ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleApprove}
+                    disabled={acting}
+                    className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-60"
+                  >
+                    Approve Pengiriman
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePartial}
+                    disabled={acting}
+                    className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                  >
+                    Partial Reject
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRejectFull}
+                    disabled={acting}
+                    className="w-full rounded-xl border border-rose-300 bg-white px-4 py-3 text-sm font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                  >
+                    Reject Pengiriman
+                  </button>
+                </>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Pengiriman sudah diproses admin.
+                </p>
+              )}
             </div>
           </section>
         </div>

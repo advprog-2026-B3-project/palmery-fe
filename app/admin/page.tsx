@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Delivery,
-  fetchPendingAdmin,
-} from "@/lib/manage-delivery-api";
+import { Pengiriman, fetchPendingAdmin } from "@/lib/manage-pengiriman-api";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 
@@ -18,6 +15,8 @@ function statusBadge(status: string) {
       return { label: "Tiba", dot: "bg-emerald-500", text: "text-emerald-600" };
     case "MEMUAT":
       return { label: "Memuat", dot: "bg-amber-500", text: "text-amber-600" };
+    case "PENDING_ADMIN_REVIEW":
+      return { label: "Menunggu Admin", dot: "bg-amber-500", text: "text-amber-600" };
     default:
       return { label: status, dot: "bg-slate-400", text: "text-slate-600" };
   }
@@ -25,15 +24,9 @@ function statusBadge(status: string) {
 
 function approvalMandor(status: string) {
   if (status === "REJECTED_MANDOR") return { label: "Rejected", tone: "red" as const };
-  if (
-    status === "PENDING_ADMIN_REVIEW" ||
-    status === "APPROVED_ADMIN" ||
-    status === "REJECTED_ADMIN" ||
-    status === "PARTIAL_REJECTED_ADMIN"
-  ) {
+  if (status === "PENDING_ADMIN_REVIEW") {
     return { label: "Approved", tone: "green" as const };
   }
-  if (status === "PENDING_MANDOR_REVIEW") return { label: "Pending", tone: "amber" as const };
   return { label: "Pending", tone: "amber" as const };
 }
 
@@ -58,17 +51,16 @@ function toneClasses(tone: "green" | "amber" | "red") {
 }
 
 export default function AdminDashboardPage() {
-  const [data, setData] = useState<Delivery[]>([]);
+  const [data, setData] = useState<Pengiriman[]>([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
   const [date, setDate] = useState("");
   const [mandor, setMandor] = useState("");
-  const [applied, setApplied] = useState({ date: "", mandor: "" });
 
-  async function load() {
+  async function load(filters?: { mandor?: string; date?: string }) {
     setLoading(true);
     try {
-      const result = await fetchPendingAdmin();
+      const result = await fetchPendingAdmin(filters);
       setData(result);
     } catch (error) {
       setToast({
@@ -87,15 +79,6 @@ export default function AdminDashboardPage() {
     load();
   }, []);
 
-  const mandorOptions = Array.from(new Set(data.map((d) => d.mandor_id))).sort();
-  const filtered = data.filter((item) => {
-    const matchMandor = applied.mandor ? item.mandor_id === applied.mandor : true;
-    const matchDate = applied.date
-      ? new Date(item.created_at).toISOString().slice(0, 10) === applied.date
-      : true;
-    return matchMandor && matchDate;
-  });
-
   return (
     <AppShell section="Pengiriman" userLabel="Admin" userInitials="A">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -104,15 +87,9 @@ export default function AdminDashboardPage() {
             Daftar Pengiriman
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Pengiriman yang menunggu review admin pusat.
+            Pengiriman yang telah disetujui mandor dan menunggu review admin.
           </p>
         </div>
-        <Link
-          href="/mandor/pengiriman-baru"
-          className="inline-flex items-center gap-2 rounded-lg bg-[var(--palmery-green)] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:brightness-110"
-        >
-          <span className="text-lg leading-none">+</span> Tambah Pengiriman
-        </Link>
       </div>
 
       <section className="mt-6 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
@@ -130,33 +107,33 @@ export default function AdminDashboardPage() {
           </div>
           <div className="min-w-[260px]">
             <label className="text-sm font-medium text-slate-700">
-              Nama Mandor
+              Cari Mandor (ID)
             </label>
             <div className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <select
+              <input
+                type="text"
                 value={mandor}
                 onChange={(e) => setMandor(e.target.value)}
-                className="w-full bg-transparent text-sm text-slate-700 outline-none"
-              >
-                <option value="">Semua Mandor</option>
-                {mandorOptions.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+                placeholder="Nama / ID mandor"
+                className="w-full text-sm text-slate-700 outline-none"
+              />
             </div>
           </div>
           <button
             type="button"
-            onClick={() => setApplied({ date, mandor })}
+            onClick={() =>
+              load({
+                mandor: mandor.trim() || undefined,
+                date: date || undefined,
+              })
+            }
             className="inline-flex items-center gap-2 rounded-xl bg-[var(--palmery-green)] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:brightness-110"
           >
             Filter
           </button>
           <button
             type="button"
-            onClick={load}
+            onClick={() => load()}
             className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
             Muat Ulang
@@ -168,6 +145,7 @@ export default function AdminDashboardPage() {
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="px-6 py-4 font-semibold">Nama Supir</th>
+                <th className="px-6 py-4 font-semibold">Mandor</th>
                 <th className="px-6 py-4 font-semibold">Total Kg</th>
                 <th className="px-6 py-4 font-semibold">Status Kirim</th>
                 <th className="px-6 py-4 font-semibold">Approval Mandor</th>
@@ -178,18 +156,18 @@ export default function AdminDashboardPage() {
             <tbody className="divide-y divide-slate-100 bg-white">
               {loading ? (
                 <tr>
-                  <td className="px-6 py-6 text-slate-500" colSpan={6}>
+                  <td className="px-6 py-6 text-slate-500" colSpan={7}>
                     Memuat pengiriman...
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : data.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-6 text-slate-500" colSpan={6}>
+                  <td className="px-6 py-6 text-slate-500" colSpan={7}>
                     Tidak ada pengiriman yang cocok dengan filter.
                   </td>
                 </tr>
               ) : (
-                filtered.map((item) => {
+                data.map((item) => {
                   const status = statusBadge(item.status);
                   const mandorAppr = approvalMandor(item.status);
                   const adminAppr = approvalAdmin(item.status);
@@ -197,6 +175,9 @@ export default function AdminDashboardPage() {
                     <tr key={item.id}>
                       <td className="px-6 py-5 text-slate-900">
                         {item.supir_id}
+                      </td>
+                      <td className="px-6 py-5 text-slate-700">
+                        {item.mandor_id}
                       </td>
                       <td className="px-6 py-5 font-semibold text-slate-900">
                         {item.total_kg} kg
@@ -211,7 +192,9 @@ export default function AdminDashboardPage() {
                         <span
                           className={`inline-flex items-center gap-2 ${toneClasses(mandorAppr.tone)}`}
                         >
-                          <span className={`h-2 w-2 rounded-full ${mandorAppr.tone === "green" ? "bg-emerald-500" : mandorAppr.tone === "red" ? "bg-rose-500" : "bg-amber-500"}`} />
+                          <span
+                            className={`h-2 w-2 rounded-full ${mandorAppr.tone === "green" ? "bg-emerald-500" : mandorAppr.tone === "red" ? "bg-rose-500" : "bg-amber-500"}`}
+                          />
                           {mandorAppr.label}
                         </span>
                       </td>
@@ -219,7 +202,9 @@ export default function AdminDashboardPage() {
                         <span
                           className={`inline-flex items-center gap-2 ${toneClasses(adminAppr.tone)}`}
                         >
-                          <span className={`h-2 w-2 rounded-full ${adminAppr.tone === "green" ? "bg-emerald-500" : adminAppr.tone === "red" ? "bg-rose-500" : "bg-amber-500"}`} />
+                          <span
+                            className={`h-2 w-2 rounded-full ${adminAppr.tone === "green" ? "bg-emerald-500" : adminAppr.tone === "red" ? "bg-rose-500" : "bg-amber-500"}`}
+                          />
                           {adminAppr.label}
                         </span>
                       </td>
