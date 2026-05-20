@@ -39,45 +39,23 @@ export type HarvestSummary = {
   status: string;
 };
 
+import { getSession } from "@/lib/auth";
+
 const MANAGE_BASE =
   process.env.NEXT_PUBLIC_MANAGE_API_BASE_URL ?? "http://localhost:8081";
-
-function getAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  const fromStorage =
-    window.localStorage.getItem("access_token") ??
-    window.localStorage.getItem("token");
-  if (fromStorage && fromStorage.trim().length > 0) return fromStorage.trim();
-
-  const match = document.cookie.match(/(?:^|;\s*)access_token=([^;]+)/);
-  if (!match) return null;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return match[1];
-  }
-}
-
-function getUserId(): string | null {
-  if (typeof window === "undefined") return null;
-  const fromStorage =
-    window.localStorage.getItem("user_id") ??
-    window.localStorage.getItem("userId");
-  if (fromStorage && fromStorage.trim().length > 0) return fromStorage.trim();
-  return null;
-}
 
 async function requestManage<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const token = getAccessToken();
-  const userId = getUserId();
+  const session = getSession();
   const response = await fetch(`${MANAGE_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(userId ? { "X-User-Id": userId } : {}),
+      ...(session?.accessToken
+        ? { Authorization: `Bearer ${session.accessToken}` }
+        : {}),
+      ...(session?.userId ? { "X-User-Id": session.userId } : {}),
       ...(init?.headers ?? {}),
     } as HeadersInit,
     ...init,
@@ -88,6 +66,13 @@ async function requestManage<T>(
     data = await response.json();
   } catch {
     // ignore
+  }
+
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/?login=required";
+    }
+    throw new Error("Sesi login telah berakhir. Silakan login kembali.");
   }
 
   if (!response.ok) {
