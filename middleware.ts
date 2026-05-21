@@ -2,6 +2,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const PROTECTED_PREFIXES = ["/supir", "/mandor", "/admin"];
+const AUTH_APP_URL =
+  process.env.NEXT_PUBLIC_AUTH_APP_URL ?? "http://localhost:3000";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001";
+
+function buildLoginUrl(returnPath: string, reason: "required" | "expired"): URL {
+  const callback = new URL("/auth/callback", APP_URL);
+  callback.searchParams.set("next", returnPath);
+
+  const login = new URL("/login", AUTH_APP_URL);
+  login.searchParams.set("returnUrl", callback.toString());
+  login.searchParams.set("reason", reason);
+  return login;
+}
 
 function decodePayload(token: string): Record<string, unknown> | null {
   const parts = token.split(".");
@@ -44,18 +57,13 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get("access_token")?.value;
   if (!token) {
-    const login = new URL("/", request.url);
-    login.searchParams.set("login", "required");
-    login.searchParams.set("from", pathname);
-    return NextResponse.redirect(login);
+    return NextResponse.redirect(buildLoginUrl(pathname, "required"));
   }
 
   const payload = decodePayload(token);
   const exp = payload?.exp;
   if (typeof exp === "number" && exp * 1000 <= Date.now()) {
-    const login = new URL("/", request.url);
-    login.searchParams.set("login", "expired");
-    return NextResponse.redirect(login);
+    return NextResponse.redirect(buildLoginUrl(pathname, "expired"));
   }
 
   const role = normalizeRole(payload?.role);
