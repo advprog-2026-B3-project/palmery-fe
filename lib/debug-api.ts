@@ -50,3 +50,14 @@ export async function fetchDatabaseChecks(
   const data = await requestDebug(service, "/api/debug/checks");
   return Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
 }
+
+export async function publishDebugEvent(payload: {
+  eventType: string;
+  payload: Record<string, unknown>;
+}): Promise<Record<string, unknown>> {
+  const data = await requestDebug("payment", "/api/debug/events", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data as Record<string, unknown>;
+}

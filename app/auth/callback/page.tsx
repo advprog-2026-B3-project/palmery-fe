@@ -1,52 +1,61 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  dashboardPathForRole,
+  setSession,
+  normalizeRole,
+  decodeJwtPayload,
+} from "@/lib/auth";
 
-export default function AuthCallbackPage() {
+function AuthCallbackInner() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
-
+    const token = searchParams.get("token");
     if (!token) {
-      setError("No token received from auth service.");
+      router.replace("/?error=missing_token");
       return;
     }
 
-    // Store the token
-    try {
-      localStorage.setItem("auth_access_token", token);
-    } catch {
-      setError("Failed to store authentication token.");
-      return;
-    }
-
-    // Redirect to dashboard
-    router.replace("/dashboard");
-  }, [router]);
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)] px-6">
-        <div className="bg-white rounded-xl border border-[var(--color-border)] p-6 max-w-sm text-center">
-          <p className="text-sm text-red-600 mb-4">{error}</p>
-          <a
-            href="/"
-            className="inline-flex rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] transition-colors"
-          >
-            Kembali ke Home
-          </a>
-        </div>
-      </div>
+    const payload = decodeJwtPayload(token);
+    const role = normalizeRole(
+      typeof payload?.role === "string" ? payload.role : null,
     );
-  }
+
+    if (!role) {
+      router.replace("/?error=invalid_role");
+      return;
+    }
+
+    setSession(token);
+    const next = searchParams.get("next");
+    if (next && next.startsWith("/")) {
+      router.replace(next);
+      return;
+    }
+    router.replace(dashboardPathForRole(role));
+  }, [router, searchParams]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
-      <p className="text-[var(--color-text-muted)]">Authenticating...</p>
-    </div>
+    <main className="grid min-h-screen place-items-center bg-zinc-950 text-zinc-100">
+      <p className="text-sm">Memproses login...</p>
+    </main>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="grid min-h-screen place-items-center bg-zinc-950 text-zinc-100">
+          <p className="text-sm">Memproses login...</p>
+        </main>
+      }
+    >
+      <AuthCallbackInner />
+    </Suspense>
   );
 }
