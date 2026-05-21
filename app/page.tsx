@@ -6,12 +6,18 @@ export default function Home() {
       <section className="w-full max-w-xl rounded-xl border border-zinc-800 bg-zinc-900 p-8">
         <h1 className="text-3xl font-semibold">Palmery FE</h1>
         <p className="mt-2 text-zinc-300">Frontend for manage/payment integration checks.</p>
-        <div className="mt-6">
+        <div className="mt-6 flex flex-wrap gap-3">
           <Link
-            href="/debug"
+            href="/kebun"
             className="inline-flex rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
           >
-            Open Debug Page
+            Kelola Kebun Sawit
+          </Link>
+          <Link
+            href="/debug"
+            className="inline-flex rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800"
+          >
+            Debug Page
           </Link>
         </div>
       </section>
