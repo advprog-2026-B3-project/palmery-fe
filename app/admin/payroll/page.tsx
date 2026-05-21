@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   approvePayroll,
@@ -49,7 +49,7 @@ export default function AdminPayrollPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadData(nextStatusFilter = statusFilter, nextUserFilter = userFilter) {
+  const loadData = useCallback(async (nextStatusFilter = "", nextUserFilter = "") => {
     setLoading(true);
     setError(null);
 
@@ -65,11 +65,11 @@ export default function AdminPayrollPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [loadData]);
 
   function syncWageForm(config: WageConfig) {
     setWages({

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   buildLoginUrl,
   buildRegisterUrl,
@@ -32,11 +32,7 @@ function roleLabel(role: AppRole): string {
 }
 
 export function HomeLanding({ loginHint, fromPath, error }: HomeLandingProps) {
-  const [session, setSessionState] = useState<AuthSession | null>(null);
-
-  useEffect(() => {
-    setSessionState(getSession());
-  }, []);
+  const [session, setSessionState] = useState<AuthSession | null>(() => getSession());
 
   function handleLogout() {
     clearSession();
@@ -127,7 +123,7 @@ export function HomeLanding({ loginHint, fromPath, error }: HomeLandingProps) {
           ) : null}
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-4">
           <article className="rounded-lg border border-zinc-800 bg-zinc-900 p-5 text-sm">
             <h2 className="text-base font-semibold">Modul Pengiriman — Supir</h2>
             <p className="mt-2 text-zinc-300">

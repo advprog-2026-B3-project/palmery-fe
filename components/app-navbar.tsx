@@ -7,14 +7,13 @@ import { NotificationBell } from "@/components/notification-bell";
 const STORAGE_KEY = "palmery-current-user";
 
 export function AppNavbar() {
-  const [currentUser, setCurrentUser] = useState("buruh-demo");
-
-  useEffect(() => {
-    const savedUser = window.localStorage.getItem(STORAGE_KEY);
-    if (savedUser && savedUser.trim()) {
-      setCurrentUser(savedUser.trim());
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (typeof window === "undefined") {
+      return "buruh-demo";
     }
-  }, []);
+    const savedUser = window.localStorage.getItem(STORAGE_KEY);
+    return savedUser && savedUser.trim() ? savedUser.trim() : "buruh-demo";
+  });
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, currentUser);

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   createTopUp,
   fetchWalletDashboard,
@@ -17,18 +17,19 @@ export default function AdminTopUpPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadWallet(targetUserId = adminUserId) {
+  const loadWallet = useCallback(async (targetUserId = "admin-utama") => {
     try {
       const data = await fetchWalletDashboard(targetUserId);
       setWallet(data);
     } catch (walletError) {
       setError(walletError instanceof Error ? walletError.message : "Unexpected error");
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void loadWallet();
-  }, []);
+    const timer = window.setTimeout(() => void loadWallet(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadWallet]);
 
   async function handleCreateTopUp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -90,7 +91,7 @@ export default function AdminTopUpPage() {
             />
             <button
               type="button"
-              onClick={() => void loadWallet()}
+              onClick={() => void loadWallet(adminUserId)}
               className="rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-800"
             >
               Refresh Wallet
