@@ -1,6 +1,15 @@
-import Link from "next/link";
+import { HomeLanding } from "@/components/home-landing";
 
-export default function Home() {
+type PageProps = {
+  searchParams: Promise<{
+    login?: string;
+    from?: string;
+    error?: string;
+  }>;
+};
+
+export default async function Home(props: PageProps) {
+  const searchParams = await props.searchParams;
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100">
       <section className="w-full max-w-xl rounded-xl border border-zinc-800 bg-zinc-900 p-8">

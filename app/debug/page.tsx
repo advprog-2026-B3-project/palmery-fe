@@ -6,6 +6,7 @@ import {
   createDatabaseCheck,
   fetchDatabaseChecks,
   fetchIntegrationStatus,
+  publishDebugEvent,
   type ServiceName,
 } from "@/lib/debug-api";
 
@@ -54,6 +55,20 @@ export default function DebugPage() {
     payment: { ...DEFAULT_STATE },
   });
   const [globalMessage, setGlobalMessage] = useState<string | null>(null);
+  const [eventType, setEventType] = useState("UserBaru");
+  const [eventPayload, setEventPayload] = useState(
+    JSON.stringify(
+      {
+        userId: "buruh-demo",
+        role: "BURUH",
+        displayName: "Buruh Demo",
+      },
+      null,
+      2,
+    ),
+  );
+  const [eventStatus, setEventStatus] = useState<string | null>(null);
+  const [eventError, setEventError] = useState<string | null>(null);
 
   function updateState(service: ServiceName, patch: Partial<ServiceState>) {
     setStates((prev) => ({
@@ -128,6 +143,20 @@ export default function DebugPage() {
     setGlobalMessage("Running healthcheck for manage and payment...");
     await Promise.all(SERVICES.map((service) => loadIntegration(service)));
     setGlobalMessage("Healthcheck finished.");
+  }
+
+  async function handlePublishEvent() {
+    setEventStatus("Publishing event to payment broker exchange...");
+    setEventError(null);
+
+    try {
+      const parsedPayload = JSON.parse(eventPayload) as Record<string, unknown>;
+      await publishDebugEvent({ eventType, payload: parsedPayload });
+      setEventStatus("Event published. Payment consumer should pick it up if the broker listener is active.");
+    } catch (error) {
+      setEventStatus(null);
+      setEventError(error instanceof Error ? error.message : "Unexpected error");
+    }
   }
 
   return (
@@ -235,6 +264,45 @@ export default function DebugPage() {
               </article>
             );
           })}
+        </section>
+
+        <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-6">
+          <h2 className="text-lg font-semibold">Payment Event Simulator</h2>
+          <p className="mt-2 text-sm text-zinc-300">
+            Publish domain events directly to the payment service for broker, wallet, payroll, and
+            notification demos.
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr]">
+            <select
+              value={eventType}
+              onChange={(event) => setEventType(event.target.value)}
+              className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2"
+            >
+              <option value="UserBaru">UserBaru</option>
+              <option value="PenugasanBaru">PenugasanBaru</option>
+              <option value="PanenApproved">PanenApproved</option>
+              <option value="PengirimanApprovedMandor">PengirimanApprovedMandor</option>
+              <option value="PengirimanApprovedAdmin">PengirimanApprovedAdmin</option>
+              <option value="PanenRejected">PanenRejected</option>
+            </select>
+            <button
+              type="button"
+              onClick={handlePublishEvent}
+              className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500"
+            >
+              Publish Event
+            </button>
+          </div>
+
+          <textarea
+            value={eventPayload}
+            onChange={(event) => setEventPayload(event.target.value)}
+            className="mt-4 min-h-56 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-3 font-mono text-sm"
+          />
+
+          {eventStatus ? <p className="mt-3 text-sm text-emerald-300">{eventStatus}</p> : null}
+          {eventError ? <p className="mt-3 text-sm text-rose-300">{eventError}</p> : null}
         </section>
       </div>
     </main>
