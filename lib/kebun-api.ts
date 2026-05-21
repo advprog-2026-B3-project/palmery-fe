@@ -1,3 +1,5 @@
+import { getSession } from "@/lib/auth";
+
 const API_BASE =
   process.env.NEXT_PUBLIC_MANAGE_API_BASE_URL ?? "http://localhost:8081";
 
@@ -55,14 +57,35 @@ export interface ApiError {
 // --- Helper ---
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const session = getSession();
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(session?.accessToken
+        ? { Authorization: `Bearer ${session.accessToken}` }
+        : {}),
+      ...(session?.userId ? { "X-User-Id": session.userId } : {}),
+      ...(init?.headers ?? {}),
+    } as HeadersInit,
     ...init,
   });
 
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/?login=required";
+    }
+    throw { timestamp: "", status: 401, error: "Sesi login telah berakhir. Silakan login kembali." } as ApiError;
+  }
+
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: "Unknown error" }));
-    throw body as ApiError;
+    let body: ApiError;
+    try {
+      body = await res.json();
+    } catch {
+      body = { timestamp: "", status: res.status, error: "Terjadi kesalahan. Silakan coba lagi." };
+    }
+    throw body;
   }
 
   if (res.status === 204) return undefined as unknown as T;
