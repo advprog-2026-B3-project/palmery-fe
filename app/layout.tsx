@@ -3,8 +3,8 @@ import { AppNavbar } from "@/components/app-navbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Palmery Payment Desk",
-  description: "Wallet, payroll, notification, and broker demo for Palmery.",
+  title: "Palmery",
+  description: "Palm Oil Plantation Management Platform",
 };
 
 export default function RootLayout({
@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body className="antialiased" suppressHydrationWarning>
         <AppNavbar />
         {children}
       </body>

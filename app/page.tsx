@@ -12,9 +12,9 @@ export default async function Home(props: PageProps) {
   const searchParams = await props.searchParams;
   return (
     <HomeLanding
-      loginHint={searchParams.login ?? null}
-      fromPath={searchParams.from ?? null}
-      error={searchParams.error ?? null}
+      loginHint={searchParams.login}
+      fromPath={searchParams.from}
+      error={searchParams.error}
     />
   );
 }
