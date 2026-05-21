@@ -1,3 +1,5 @@
+import { getSession } from "./auth";
+
 const MANAGE_BASE =
     process.env.NEXT_PUBLIC_MANAGE_API_BASE_URL ?? "http://localhost:8081";
 
@@ -5,9 +7,19 @@ async function requestManage<T>(
     path: string,
     init?: RequestInit,
 ): Promise<T> {
+    const session = getSession();
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+    };
+    
+    if (session?.accessToken) {
+        headers["Authorization"] = `Bearer ${session.accessToken}`;
+    }
+
     const response = await fetch(`${MANAGE_BASE}${path}`, {
         headers: {
-            "Content-Type": "application/json",
+            ...headers,
+            ...(init?.headers || {}),
         },
         ...init,
     });
@@ -71,15 +83,21 @@ export async function uploadHarvestPhoto(
     file: File,
     userId: string,
 ): Promise<UploadPhotoResponse> {
+    const session = getSession();
     const formData = new FormData();
     formData.append("file", file);
 
+    const headers: Record<string, string> = {
+        "X-User-Id": userId,
+        "X-User-Role": "BURUH",
+    };
+    if (session?.accessToken) {
+        headers["Authorization"] = `Bearer ${session.accessToken}`;
+    }
+
     const response = await fetch(`${MANAGE_BASE}/api/harvests/photos`, {
         method: "POST",
-        headers: {
-            "X-User-Id": userId,
-            "X-User-Role": "BURUH",
-        },
+        headers,
         body: formData,
     });
 
