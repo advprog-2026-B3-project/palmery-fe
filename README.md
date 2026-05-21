@@ -1,36 +1,29 @@
-# Palmery Front End (palmery-fe)
+# Palmery Front End
 
-Aplikasi utama MySawit (pengiriman, payment desk, dll.) di **http://localhost:3001**.
+This is a Next.js project
 
-Login/registrasi dilakukan di **palmery-auth** (http://localhost:3000), lalu dialihkan kembali dengan JWT.
+## Getting Started
 
-## Setup
+To run the development server:
+
+```bash
+pnpm dev
+```
+It should run on localhost:3000
+
+## Debug Integration Page
+
+Copy `.env.sample` to `.env.local` if you want to override backend URLs:
 
 ```bash
 cp .env.sample .env.local
-pnpm install
-pnpm dev
 ```
 
-## Stack lokal
+The debug UI is available at:
 
-Lihat panduan lengkap di [../palmery-manage/README.md](../palmery-manage/README.md).
+- `http://localhost:3000/debug`
 
-| App | Port | Command |
-|-----|------|---------|
-| palmery-fe | 3001 | `pnpm dev` |
-| palmery-auth UI | 3000 | `cd ../palmery-auth/frontend && pnpm dev` |
-| palmery-auth API | 8080 | `cd ../palmery-auth/backend && ./gradlew bootRun` |
-| palmery-manage | 8081 | `cd ../palmery-manage && ./gradlew bootRun --args='--spring.profiles.active=dev'` |
+Default backend targets:
 
-## Route protection
-
-- `/supir/*` — hanya peran **SUPIR**
-- `/mandor/*` — hanya peran **MANDOR**
-- `/admin/*` (pengiriman) — hanya peran **ADMIN**
-
-Tanpa login, akses dashboard dialihkan ke `/` dengan pesan login required.
-
-## Debug
-
-- `http://localhost:3001/debug`
+- `palmery-manage`: `http://localhost:8081`
+- `palmery-payment`: `http://localhost:8082`

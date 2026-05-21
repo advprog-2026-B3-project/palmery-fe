@@ -21,30 +21,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.13.0"
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: "10"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
       - name: Install dependencies
-        run: |
-          if [ -d palmery-fe ]; then cd palmery-fe; fi
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: |
-          if [ -d palmery-fe ]; then cd palmery-fe; fi
-          pnpm lint
+        run: pnpm lint
 
       - name: Build
-        run: |
-          if [ -d palmery-fe ]; then cd palmery-fe; fi
-          pnpm build
+        run: pnpm build
 
       - name: SonarCloud Scan
         uses: sonarsource/sonarqube-scan-action@v6
@@ -81,32 +76,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22.13.0"
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: "10"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
       - name: Install dependencies
-        run: |
-          if [ -d palmery-fe ]; then cd palmery-fe; fi
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build production app
-        run: |
-          if [ -d palmery-fe ]; then cd palmery-fe; fi
-          pnpm build
+        run: pnpm build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: palmery-fe-next-build
-          path: |
-            .next
-            palmery-fe/.next
+          path: .next
           include-hidden-files: true
           if-no-files-found: error

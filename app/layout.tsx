@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { AppNavbar } from "@/components/app-navbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Palmery",
-  description: "Palm Oil Plantation Management Platform",
+  title: "Palmery - Palm Oil Plantation Management",
+  description: "Enterprise field portal for palm oil plantation management",
 };
 
 export default function RootLayout({
@@ -13,9 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased" suppressHydrationWarning>
-        <AppNavbar />
+    <html lang="id">
+      <body className="antialiased">
         {children}
       </body>
     </html>

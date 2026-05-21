@@ -1,40 +1,62 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --palmery-bg: #f5f7fa;
-  --palmery-green: #3f5f0b;
+  /* Font customization - change this variable to use a different font */
+  --font-primary: var(--font-app, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Palmery color palette */
+  --color-primary: #3D5A00;
+  --color-primary-light: #5A7A1A;
+  --color-primary-dark: #2A3F00;
+  --color-accent: #8DB600;
+  --color-accent-light: #C5E63A;
+  --color-bg: #F5F2EB;
+  --color-bg-card: #FFFFFF;
+  --color-bg-dark: #2C3E1A;
+  --color-bg-sidebar: #FAFAF5;
+  --color-text: #1A1A1A;
+  --color-text-muted: #6B7280;
+  --color-text-light: #9CA3AF;
+  --color-border: #E5E2DB;
+  --color-border-light: #F0EDE6;
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-error: #DC2626;
+  --color-info: #2563EB;
+
+  /* Sidebar */
+  --sidebar-width: 220px;
+  --sidebar-active-bg: #8DB600;
+  --sidebar-active-text: #FFFFFF;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: "Trebuchet MS", "Segoe UI", sans-serif;
-  --font-mono: "SFMono-Regular", "Consolas", monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --palmery-bg: #0b0908;
-  }
-}
-
-body {
-  background: var(--palmery-bg);
-  color: var(--foreground);
-  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
+  --font-sans: var(--font-primary);
+  --font-mono: var(--font-mono);
 }
 
 * {
   box-sizing: border-box;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-primary);
+  margin: 0;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
