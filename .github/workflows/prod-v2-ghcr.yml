@@ -1,9 +1,9 @@
-name: Prod V2 GHCR Publish
+name: Main GHCR Publish
 
 on:
   push:
     branches:
-      - prod-v2
+      - main
   workflow_dispatch:
 
 jobs:
@@ -47,5 +47,5 @@ jobs:
             NEXT_PUBLIC_AUTH_FRONTEND_URL=https://auth.palmery.my.id
             NEXT_PUBLIC_APP_CALLBACK_URL=https://palmery.my.id/auth/callback
           tags: |
-            ghcr.io/${{ steps.owner.outputs.value }}/palmery-fe:prod-v2
-            ghcr.io/${{ steps.owner.outputs.value }}/palmery-fe:prod-v2-${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.value }}/palmery-fe:main
+            ghcr.io/${{ steps.owner.outputs.value }}/palmery-fe:main-${{ github.sha }}
