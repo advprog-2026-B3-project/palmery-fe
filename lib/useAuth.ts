@@ -9,12 +9,21 @@ export function useAuth() {
 
   useEffect(() => {
     const token = getToken();
+    const nextUser = token && !isTokenExpired(token) ? getAuthUser() : null;
     if (token && !isTokenExpired(token)) {
-      setUser(getAuthUser());
-    } else if (token) {
-      clearToken();
+      queueMicrotask(() => {
+        setUser(nextUser);
+        setInitialized(true);
+      });
+    } else {
+      if (token) {
+        clearToken();
+      }
+      queueMicrotask(() => {
+        setUser(null);
+        setInitialized(true);
+      });
     }
-    setInitialized(true);
   }, []);
 
   const role: UserRole | null = normalizeRole(user?.role);

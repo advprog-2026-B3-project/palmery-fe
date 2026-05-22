@@ -8,7 +8,7 @@ import { getPayrolls, getWallet, approvePayroll, rejectPayroll, type PayrollSumm
 import { getAuthUser } from "@/lib/auth";
 
 export default function PayrollPage() {
-  const { isAdmin, role, user } = useAuth();
+  const { isAdmin } = useAuth();
   const [payrolls, setPayrolls] = useState<PayrollSummary[]>([]);
   const [wallet, setWallet] = useState<WalletDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,7 +135,7 @@ export default function PayrollPage() {
           >
             <option value="">Semua Status</option>
             <option value="PENDING">Pending</option>
-            <option value="ACCEPTED">Accepted</option>
+            <option value="APPROVED">Approved</option>
             <option value="REJECTED">Rejected</option>
           </select>
         </div>
@@ -172,7 +172,12 @@ export default function PayrollPage() {
                 {payrolls.map((p) => (
                   <tr key={p.id} className="border-b border-[var(--color-border-light)] last:border-0">
                     <td className="px-4 py-3 font-mono text-xs">#{p.id}</td>
-                    {isAdmin && <td className="px-4 py-3">{p.userName ?? p.userId.slice(0, 8)}</td>}
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{p.userName ?? p.userId.slice(0, 8)}</div>
+                        <div className="text-xs text-[var(--color-text-muted)]">{p.type}</div>
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-medium">{p.amount.toLocaleString("id-ID")} SD</td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] max-w-[200px] truncate">{p.description}</td>
                     <td className="px-4 py-3">{statusBadge(p.status)}</td>
@@ -195,7 +200,7 @@ export default function PayrollPage() {
                             </button>
                           </div>
                         )}
-                        {p.reason && <p className="text-xs text-red-500 mt-1">Alasan: {p.reason}</p>}
+                        {p.rejectionReason && <p className="text-xs text-red-500 mt-1">Alasan: {p.rejectionReason}</p>}
                       </td>
                     )}
                   </tr>

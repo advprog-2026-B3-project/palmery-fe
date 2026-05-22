@@ -15,12 +15,14 @@ type DashboardLayoutProps = {
 export default function DashboardLayout({ children, allowedRoles }: DashboardLayoutProps) {
   return (
     <AuthGuard allowedRoles={allowedRoles}>
-      <div className="min-h-screen flex flex-col">
+      <div className="min-h-screen bg-[var(--color-bg)] flex flex-col">
         <Navbar />
-        <div className="flex flex-1">
+        <div className="flex flex-1 min-w-0">
           <Sidebar />
-          <main className="flex-1 lg:ml-[var(--sidebar-width)] p-6 md:p-8">
-            {children}
+          <main className="flex-1 min-w-0 lg:ml-[var(--sidebar-width)]">
+            <div className="px-4 py-6 sm:px-6 md:px-8">
+              {children}
+            </div>
           </main>
         </div>
         <div className="lg:ml-[var(--sidebar-width)]">

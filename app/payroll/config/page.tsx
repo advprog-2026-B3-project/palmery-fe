@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getWageConfig, updateWageConfig, type WageConfig } from "@/lib/api";
+import { getWageConfig, updateWageConfig } from "@/lib/api";
 
 export default function WageConfigPage() {
-  const [config, setConfig] = useState<WageConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,11 +21,10 @@ export default function WageConfigPage() {
     setLoading(true);
     try {
       const data = await getWageConfig();
-      setConfig(data);
       setForm({
-        buruhPerKg: String(data.buruhPerKg ?? ""),
-        supirPerKg: String(data.supirPerKg ?? ""),
-        mandorPerKg: String(data.mandorPerKg ?? ""),
+        buruhPerKg: String(data.buruhRatePerKg ?? ""),
+        supirPerKg: String(data.supirRatePerKg ?? ""),
+        mandorPerKg: String(data.mandorRatePerKg ?? ""),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load config");
@@ -42,9 +40,9 @@ export default function WageConfigPage() {
     setSuccess(null);
     try {
       await updateWageConfig({
-        buruhPerKg: parseFloat(form.buruhPerKg) || undefined,
-        supirPerKg: parseFloat(form.supirPerKg) || undefined,
-        mandorPerKg: parseFloat(form.mandorPerKg) || undefined,
+        buruhRatePerKg: parseFloat(form.buruhPerKg) || undefined,
+        supirRatePerKg: parseFloat(form.supirPerKg) || undefined,
+        mandorRatePerKg: parseFloat(form.mandorPerKg) || undefined,
       });
       setSuccess("Konfigurasi upah berhasil diperbarui.");
       loadConfig();

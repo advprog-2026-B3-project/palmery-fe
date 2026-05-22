@@ -4,15 +4,31 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getPengirimanById, type Pengiriman } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
+import {
+  approvePengirimanByAdmin,
+  approvePengirimanByMandor,
+  getPengirimanById,
+  partiallyApprovePengirimanByAdmin,
+  rejectPengirimanByAdmin,
+  rejectPengirimanByMandor,
+  updatePengirimanStatus,
+  type Pengiriman,
+  type PengirimanStatus,
+} from "@/lib/api";
 
 export default function PengirimanDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { isAdmin, isMandor, isSupir } = useAuth();
 
   const [pengiriman, setPengiriman] = useState<Pengiriman | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mandorReason, setMandorReason] = useState("");
+  const [adminReason, setAdminReason] = useState("");
+  const [recognizedKg, setRecognizedKg] = useState("");
 
   useEffect(() => {
     loadPengiriman();
@@ -52,14 +68,52 @@ export default function PengirimanDetailPage() {
   function statusColor(status: string) {
     const colors: Record<string, string> = {
       MEMUAT: "bg-blue-100 text-blue-700",
-      DALAM_PERJALANAN: "bg-yellow-100 text-yellow-700",
-      TIBA: "bg-green-100 text-green-700",
-      APPROVED_MANDOR: "bg-emerald-100 text-emerald-700",
-      APPROVED_ADMIN: "bg-green-100 text-green-700",
+      MENGIRIM: "bg-yellow-100 text-yellow-700",
+      TIBA_DI_TUJUAN: "bg-green-100 text-green-700",
+      APPROVED: "bg-green-100 text-green-700",
+      PARTIALLY_APPROVED: "bg-yellow-100 text-yellow-700",
       REJECTED: "bg-red-100 text-red-700",
+      PENDING: "bg-gray-100 text-gray-700",
     };
     return colors[status] ?? "bg-gray-100 text-gray-700";
   }
+
+  async function runAction(action: () => Promise<Pengiriman>) {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await action();
+      setPengiriman(updated);
+      setMandorReason("");
+      setAdminReason("");
+      setRecognizedKg("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memproses pengiriman");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function nextDriverStatus(status: PengirimanStatus): PengirimanStatus | null {
+    if (status === "MEMUAT") return "MENGIRIM";
+    if (status === "MENGIRIM") return "TIBA_DI_TUJUAN";
+    return null;
+  }
+
+  function canMandorReview() {
+    return isMandor
+      && pengiriman?.status === "TIBA_DI_TUJUAN"
+      && pengiriman.mandor_approval_status === "PENDING";
+  }
+
+  function canAdminReview() {
+    return isAdmin
+      && pengiriman?.mandor_approval_status === "APPROVED"
+      && pengiriman.admin_approval_status === "PENDING";
+  }
+
+  const driverNextStatus = nextDriverStatus(pengiriman.status);
+  const parsedRecognizedKg = Number.parseInt(recognizedKg, 10);
 
   return (
     <DashboardLayout allowedRoles={["ADMIN", "MANDOR", "SUPIR"]}>
@@ -88,21 +142,21 @@ export default function PengirimanDetailPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <button className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-                </svg>
-                Cetak Surat Jalan
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-border-light)] transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-                Ubah Data
+              <button
+                onClick={loadPengiriman}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-border-light)] transition-colors"
+              >
+                Refresh
               </button>
             </div>
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-6">
+            {error}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Left Column - Timeline */}
@@ -210,6 +264,134 @@ export default function PengirimanDetailPage() {
 
           {/* Right Column */}
           <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-[var(--color-border)] p-5">
+              <h3 className="text-xs uppercase tracking-wider text-[var(--color-text-muted)] font-semibold mb-3">
+                Aksi Tersimpan ke Backend
+              </h3>
+
+              {isSupir && (
+                <div className="space-y-3">
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    Update status pengiriman sesuai urutan: MEMUAT, MENGIRIM, TIBA DI TUJUAN.
+                  </p>
+                  <button
+                    onClick={() => driverNextStatus && runAction(() => updatePengirimanStatus(pengiriman.id, driverNextStatus))}
+                    disabled={!driverNextStatus || saving}
+                    className="w-full rounded-full bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {driverNextStatus ? `Tandai ${driverNextStatus.replace(/_/g, " ")}` : "Status Supir Selesai"}
+                  </button>
+                </div>
+              )}
+
+              {isMandor && (
+                <div className="space-y-3">
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    Validasi mandor aktif setelah supir menandai pengiriman tiba di tujuan.
+                  </p>
+                  <button
+                    onClick={() => runAction(() => approvePengirimanByMandor(pengiriman.id))}
+                    disabled={!canMandorReview() || saving}
+                    className="w-full rounded-full bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Approve oleh Mandor
+                  </button>
+                  <textarea
+                    value={mandorReason}
+                    onChange={(e) => setMandorReason(e.target.value)}
+                    placeholder="Alasan jika pengiriman ditolak..."
+                    disabled={!canMandorReview()}
+                    className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!mandorReason.trim()) {
+                        setError("Alasan penolakan mandor wajib diisi.");
+                        return;
+                      }
+                      runAction(() => rejectPengirimanByMandor(pengiriman.id, mandorReason.trim()));
+                    }}
+                    disabled={!canMandorReview() || saving}
+                    className="w-full rounded-full border border-red-300 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Reject oleh Mandor
+                  </button>
+                </div>
+              )}
+
+              {isAdmin && (
+                <div className="space-y-3">
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    Admin memproses pengiriman yang sudah disetujui mandor.
+                  </p>
+                  <button
+                    onClick={() => runAction(() => approvePengirimanByAdmin(pengiriman.id))}
+                    disabled={!canAdminReview() || saving}
+                    className="w-full rounded-full bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Approve Penuh
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    max={Math.max(pengiriman.total_kg - 1, 1)}
+                    value={recognizedKg}
+                    onChange={(e) => setRecognizedKg(e.target.value)}
+                    placeholder="Kg yang diakui untuk partial"
+                    disabled={!canAdminReview()}
+                    className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+                  />
+                  <textarea
+                    value={adminReason}
+                    onChange={(e) => setAdminReason(e.target.value)}
+                    placeholder="Alasan partial/reject..."
+                    disabled={!canAdminReview()}
+                    className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        if (!adminReason.trim()) {
+                          setError("Alasan partial approval wajib diisi.");
+                          return;
+                        }
+                        if (!Number.isFinite(parsedRecognizedKg) || parsedRecognizedKg <= 0) {
+                          setError("Kg yang diakui harus lebih dari 0.");
+                          return;
+                        }
+                        runAction(() => partiallyApprovePengirimanByAdmin(
+                          pengiriman.id,
+                          parsedRecognizedKg,
+                          adminReason.trim(),
+                        ));
+                      }}
+                      disabled={!canAdminReview() || saving}
+                      className="rounded-full border border-yellow-300 px-3 py-2 text-xs font-medium text-yellow-700 hover:bg-yellow-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Partial
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!adminReason.trim()) {
+                          setError("Alasan penolakan admin wajib diisi.");
+                          return;
+                        }
+                        runAction(() => rejectPengirimanByAdmin(pengiriman.id, adminReason.trim()));
+                      }}
+                      disabled={!canAdminReview() || saving}
+                      className="rounded-full border border-red-300 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!isAdmin && !isMandor && !isSupir && (
+                <p className="text-sm text-[var(--color-text-muted)]">Tidak ada aksi untuk role ini.</p>
+              )}
+            </div>
+
             {/* Verification */}
             <div className="bg-white rounded-xl border border-[var(--color-border)] p-5">
               <h3 className="text-xs uppercase tracking-wider text-[var(--color-text-muted)] font-semibold mb-3">

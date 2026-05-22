@@ -1,57 +1,129 @@
-import { getToken, decodeToken } from "@/lib/auth";
+import { decodeToken, getToken, normalizeRole } from "@/lib/auth";
 
 const MANAGE_API_BASE = process.env.NEXT_PUBLIC_MANAGE_API_BASE_URL ?? "http://localhost:8081";
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_BASE_URL ?? "http://localhost:8080";
+const PAYMENT_API_BASE = process.env.NEXT_PUBLIC_PAYMENT_API_BASE_URL ?? "http://localhost:8082";
 
-function getUserId(): string | null {
+function currentUser() {
   const token = getToken();
-  if (!token) return null;
-  const payload = decodeToken(token);
-  return payload?.sub ?? null;
+  return token ? decodeToken(token) : null;
 }
 
-function getUserRole(): string | null {
+function currentUserId(): string | null {
+  return currentUser()?.sub ?? null;
+}
+
+function currentUserRole(): string | null {
+  return normalizeRole(currentUser()?.role);
+}
+
+function isFormData(body: BodyInit | null | undefined): body is FormData {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
+function buildHeaders(init?: RequestInit, includeUserHeaders = false): Headers {
+  const headers = new Headers(init?.headers);
   const token = getToken();
-  if (!token) return null;
-  const payload = decodeToken(token);
-  return payload?.role ?? null;
+
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  if (!isFormData(init?.body) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (includeUserHeaders) {
+    const userId = currentUserId();
+    const role = currentUserRole();
+    if (userId) headers.set("X-User-Id", userId);
+    if (role) headers.set("X-User-Role", role);
+  }
+
+  return headers;
+}
+
+async function readError(response: Response): Promise<string> {
+  const text = await response.text();
+  if (!text) return `HTTP ${response.status}`;
+  try {
+    const payload = JSON.parse(text) as { message?: string; error?: string };
+    return payload.message ?? payload.error ?? text;
+  } catch {
+    return text;
+  }
+}
+
+async function readJson<T>(response: Response, fallbackMessage: string): Promise<T> {
+  if (!response.ok) {
+    throw new Error(await readError(response) || fallbackMessage);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 async function fetchManage(path: string, init?: RequestInit): Promise<Response> {
-  const token = getToken();
-  const userId = getUserId();
-  const userRole = getUserRole();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string> ?? {}),
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  if (userId) headers["X-User-Id"] = userId;
-  if (userRole) headers["X-User-Role"] = userRole;
-
   try {
-    return await fetch(`${MANAGE_API_BASE}${path}`, { ...init, headers });
-  } catch (err) {
+    return await fetch(`${MANAGE_API_BASE}${path}`, {
+      ...init,
+      headers: buildHeaders(init, true),
+    });
+  } catch {
     throw new Error(`Cannot connect to manage service at ${MANAGE_API_BASE}. Is the backend running?`);
   }
 }
 
-async function fetchAuth(path: string, init?: RequestInit): Promise<Response> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string> ?? {}),
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+/**
+ * Resolve photo URL to a fully-qualified URL pointing at the manage service.
+ *
+ * Server can return either a relative path (e.g. "/api/harvests/photos/xxx.jpg")
+ * which is the proxy endpoint, or a legacy absolute URL pointing directly at MinIO.
+ * Both are normalized to go through the manage proxy so the browser never hits
+ * the private S3 bucket directly.
+ */
+export function resolvePhotoUrl(url?: string | null): string {
+  if (!url) return "";
 
+  // Legacy absolute URL pointing at MinIO/RustFS — rewrite to proxy.
+  // Pattern: <minio>/<bucket>/<filename>
+  const minioMatch = url.match(/^https?:\/\/[^/]+\/[^/]+\/(.+)$/);
+  if (minioMatch && !url.includes("/api/harvests/photos/")) {
+    return `${MANAGE_API_BASE}/api/harvests/photos/${minioMatch[1]}`;
+  }
+
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("/")) return `${MANAGE_API_BASE}${url}`;
+  return url;
+}
+
+async function fetchAuth(path: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(`${AUTH_API_BASE}${path}`, { ...init, headers });
-  } catch (err) {
+    return await fetch(`${AUTH_API_BASE}${path}`, {
+      ...init,
+      headers: buildHeaders(init),
+    });
+  } catch {
     throw new Error(`Cannot connect to auth service at ${AUTH_API_BASE}. Is the backend running?`);
   }
 }
 
-// ─── Plantation (Kebun) ───────────────────────────────────────────────────────
+async function fetchPayment(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(`${PAYMENT_API_BASE}${path}`, {
+      ...init,
+      headers: buildHeaders(init, true),
+    });
+  } catch {
+    throw new Error(`Cannot connect to payment service at ${PAYMENT_API_BASE}. Is the backend running?`);
+  }
+}
 
 export type PlantationSummary = {
   id: string;
@@ -81,15 +153,11 @@ export async function getPlantations(name?: string, code?: string): Promise<Plan
   if (name) params.set("name", name);
   if (code) params.set("code", code);
   const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchManage(`/kebun${query}`);
-  if (!res.ok) throw new Error(`Failed to fetch plantations: ${res.status}`);
-  return res.json();
+  return readJson(await fetchManage(`/kebun${query}`), "Failed to fetch plantations");
 }
 
 export async function getPlantationById(id: string): Promise<PlantationDetail> {
-  const res = await fetchManage(`/kebun/${id}`);
-  if (!res.ok) throw new Error(`Failed to fetch plantation: ${res.status}`);
-  return res.json();
+  return readJson(await fetchManage(`/kebun/${id}`), "Failed to fetch plantation");
 }
 
 export type CreatePlantationRequest = {
@@ -107,18 +175,104 @@ export type CreatePlantationRequest = {
 };
 
 export async function createPlantation(data: CreatePlantationRequest): Promise<PlantationDetail> {
-  const res = await fetchManage("/kebun", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Failed to create plantation: ${res.status}`);
-  }
-  return res.json();
+  return readJson(
+    await fetchManage("/kebun", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+    "Failed to create plantation",
+  );
 }
 
-// ─── Harvest (Panen) ──────────────────────────────────────────────────────────
+export async function assignMandorToPlantation(plantationId: string, personnelId: string): Promise<void> {
+  await readJson<void>(
+    await fetchManage(`/kebun/${plantationId}/mandor`, {
+      method: "POST",
+      body: JSON.stringify({ personnelId }),
+    }),
+    "Failed to assign mandor",
+  );
+}
+
+export async function assignSupirToPlantation(plantationId: string, personnelId: string): Promise<void> {
+  await readJson<void>(
+    await fetchManage(`/kebun/${plantationId}/supir`, {
+      method: "POST",
+      body: JSON.stringify({ personnelId }),
+    }),
+    "Failed to assign supir",
+  );
+}
+
+export async function unassignMandorFromPlantation(plantationId: string, personnelId: string): Promise<void> {
+  await readJson<void>(
+    await fetchManage(`/kebun/${plantationId}/mandor`, {
+      method: "DELETE",
+      body: JSON.stringify({ personnelId }),
+    }),
+    "Failed to unassign mandor",
+  );
+}
+
+export async function unassignSupirFromPlantation(plantationId: string, personnelId: string): Promise<void> {
+  await readJson<void>(
+    await fetchManage(`/kebun/${plantationId}/supir`, {
+      method: "DELETE",
+      body: JSON.stringify({ personnelId }),
+    }),
+    "Failed to unassign supir",
+  );
+}
+
+export async function transferMandorBetweenPlantations(
+  fromPlantationId: string,
+  toPlantationId: string,
+  personnelId: string,
+): Promise<void> {
+  await readJson<void>(
+    await fetchManage(`/kebun/${fromPlantationId}/mandor/transfer`, {
+      method: "POST",
+      body: JSON.stringify({ personnelId, toPlantationId }),
+    }),
+    "Failed to transfer mandor",
+  );
+}
+
+export async function transferSupirBetweenPlantations(
+  fromPlantationId: string,
+  toPlantationId: string,
+  personnelId: string,
+): Promise<void> {
+  await readJson<void>(
+    await fetchManage(`/kebun/${fromPlantationId}/supir/transfer`, {
+      method: "POST",
+      body: JSON.stringify({ personnelId, toPlantationId }),
+    }),
+    "Failed to transfer supir",
+  );
+}
+
+export async function getPengirimanBySupirForMandor(
+  supirId: string,
+  filters?: { from?: string; to?: string },
+): Promise<Pengiriman[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set("from", filters.from);
+  if (filters?.to) params.set("to", filters.to);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return readJson(
+    await fetchManage(`/api/mandor/supir/${supirId}/pengiriman${query}`),
+    "Failed to fetch pengiriman by supir",
+  );
+}
+
+export type HarvestPhoto = {
+  id?: string;
+  url: string;
+  filename: string;
+  sizeBytes: number;
+  uploadedAt?: string;
+};
 
 export type HarvestResult = {
   id: string;
@@ -133,7 +287,7 @@ export type HarvestResult = {
   readyForDelivery: boolean;
   validatedAt?: string;
   createdAt: string;
-  photos: { url: string; filename: string; sizeBytes: number }[];
+  photos: HarvestPhoto[];
 };
 
 export type SubmitHarvestRequest = {
@@ -142,39 +296,95 @@ export type SubmitHarvestRequest = {
   harvestDate: string;
   kgHarvested: number;
   notes: string;
+  photos?: HarvestPhoto[];
 };
 
-export async function submitHarvest(data: SubmitHarvestRequest): Promise<HarvestResult> {
-  const res = await fetchManage("/api/harvests", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Failed to submit harvest: ${res.status}`);
-  }
-  return res.json();
+export async function uploadHarvestPhoto(file: File): Promise<HarvestPhoto> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return readJson(
+    await fetchManage("/api/harvests/photos", {
+      method: "POST",
+      body: formData,
+    }),
+    "Failed to upload photo",
+  );
 }
 
-export async function getHarvests(): Promise<HarvestResult[]> {
-  const res = await fetchManage("/api/harvests");
-  if (!res.ok) throw new Error(`Failed to fetch harvests: ${res.status}`);
-  return res.json();
+export async function submitHarvest(data: SubmitHarvestRequest): Promise<HarvestResult> {
+  return readJson(
+    await fetchManage("/api/harvests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+    "Failed to submit harvest",
+  );
+}
+
+export async function getHarvests(date?: string, workerId?: string): Promise<HarvestResult[]> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  if (workerId) params.set("workerId", workerId);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return readJson(await fetchManage(`/api/harvests${query}`), "Failed to fetch harvests");
 }
 
 export async function getHarvestById(id: string): Promise<HarvestResult> {
-  const res = await fetchManage(`/api/harvests/${id}`);
-  if (!res.ok) throw new Error(`Failed to fetch harvest: ${res.status}`);
-  return res.json();
+  return readJson(await fetchManage(`/api/harvests/${id}`), "Failed to fetch harvest");
 }
 
-export async function getMyHarvests(): Promise<HarvestResult[]> {
-  const res = await fetchManage("/api/harvests/me");
-  if (!res.ok) throw new Error(`Failed to fetch my harvests: ${res.status}`);
-  return res.json();
+export async function getHarvestsByWorkerId(workerId: string): Promise<HarvestResult[]> {
+  return readJson(
+    await fetchManage(`/api/harvests/worker/${workerId}`),
+    "Failed to fetch worker harvests",
+  );
 }
 
-// ─── Pengiriman (Logistics) ───────────────────────────────────────────────────
+export async function getMyHarvests(filters?: { status?: string; start?: string; end?: string }): Promise<HarvestResult[]> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.start) params.set("start", filters.start);
+  if (filters?.end) params.set("end", filters.end);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return readJson(await fetchManage(`/api/harvests/me${query}`), "Failed to fetch my harvests");
+}
+
+export async function hasSubmittedHarvestToday(): Promise<boolean> {
+  const today = new Date().toISOString().split("T")[0];
+  const list = await getMyHarvests({ start: today, end: today });
+  return list.length > 0;
+}
+
+export async function validateHarvest(
+  id: string,
+  status: "APPROVED" | "REJECTED",
+  rejectionReason?: string,
+): Promise<HarvestResult> {
+  return readJson(
+    await fetchManage(`/api/harvests/${id}/validate`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, rejectionReason }),
+    }),
+    "Failed to validate harvest",
+  );
+}
+
+export type ReadyHarvest = {
+  id: string;
+  berat_kg: number;
+  kebun_id: string;
+  mandor_id?: string;
+  status?: string;
+};
+
+export type DriverOption = {
+  id: string;
+  nama: string;
+  kebun_id?: string;
+  kontak?: string;
+};
+
+export type PengirimanStatus = "MEMUAT" | "MENGIRIM" | "TIBA_DI_TUJUAN";
 
 export type Pengiriman = {
   id: string;
@@ -182,7 +392,7 @@ export type Pengiriman = {
   mandor_id: string;
   kebun_id: string;
   total_kg: number;
-  status: string;
+  status: PengirimanStatus;
   mandor_approval_status: string;
   admin_approval_status: string;
   panen_ids: string[];
@@ -193,50 +403,107 @@ export type Pengiriman = {
   updated_at: string;
 };
 
-export async function getDriversForMandor(search?: string): Promise<{ id: string; nama: string }[]> {
+export async function getDriversForMandor(search?: string): Promise<DriverOption[]> {
   const params = search ? `?search=${encodeURIComponent(search)}` : "";
-  const res = await fetchManage(`/api/mandor/drivers${params}`);
-  if (!res.ok) throw new Error(`Failed to fetch drivers: ${res.status}`);
-  return res.json();
+  return readJson(await fetchManage(`/api/mandor/drivers${params}`), "Failed to fetch drivers");
 }
 
-export async function getPanenSiapAngkut(): Promise<{ id: string; berat_kg: number; kebun_id: string }[]> {
-  const res = await fetchManage("/api/mandor/panen/siap-angkut");
-  if (!res.ok) throw new Error(`Failed to fetch ready harvests: ${res.status}`);
-  return res.json();
+export async function getPanenSiapAngkut(): Promise<ReadyHarvest[]> {
+  return readJson(await fetchManage("/api/mandor/panen/siap-angkut"), "Failed to fetch ready harvests");
 }
 
 export async function createPengiriman(supirId: string, panenIds: string[]): Promise<Pengiriman> {
-  const res = await fetchManage("/api/mandor/pengiriman", {
-    method: "POST",
-    body: JSON.stringify({ supirId, panenIds }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Failed to create pengiriman: ${res.status}`);
-  }
-  return res.json();
+  return readJson(
+    await fetchManage("/api/mandor/pengiriman", {
+      method: "POST",
+      body: JSON.stringify({ supirId, panenIds }),
+    }),
+    "Failed to create pengiriman",
+  );
 }
 
 export async function getActivePengirimanMandor(): Promise<Pengiriman[]> {
-  const res = await fetchManage("/api/mandor/pengiriman/aktif");
-  if (!res.ok) throw new Error(`Failed to fetch active pengiriman: ${res.status}`);
-  return res.json();
+  return readJson(await fetchManage("/api/mandor/pengiriman/aktif"), "Failed to fetch mandor shipments");
+}
+
+export async function getActivePengirimanSupir(): Promise<Pengiriman[]> {
+  return readJson(await fetchManage("/api/supir/pengiriman/aktif"), "Failed to fetch driver shipments");
+}
+
+export async function getRiwayatPengirimanSupir(from: string, to: string): Promise<Pengiriman[]> {
+  const params = new URLSearchParams({ from, to });
+  return readJson(await fetchManage(`/api/supir/pengiriman/riwayat?${params.toString()}`), "Failed to fetch driver history");
 }
 
 export async function getPengirimanById(id: string): Promise<Pengiriman> {
-  const res = await fetchManage(`/api/admin/pengiriman/${id}`);
-  if (!res.ok) throw new Error(`Failed to fetch pengiriman: ${res.status}`);
-  return res.json();
+  return readJson(await fetchManage(`/api/admin/pengiriman/${id}`), "Failed to fetch pengiriman");
 }
 
-export async function getPendingPengiriman(): Promise<Pengiriman[]> {
-  const res = await fetchManage("/api/admin/pengiriman/pending");
-  if (!res.ok) throw new Error(`Failed to fetch pending pengiriman: ${res.status}`);
-  return res.json();
+export async function getPendingPengiriman(mandor?: string, date?: string): Promise<Pengiriman[]> {
+  const params = new URLSearchParams();
+  if (mandor) params.set("mandor", mandor);
+  if (date) params.set("date", date);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return readJson(await fetchManage(`/api/admin/pengiriman/pending${query}`), "Failed to fetch pending pengiriman");
 }
 
-// ─── Users (from auth service) ────────────────────────────────────────────────
+export async function updatePengirimanStatus(id: string, status: PengirimanStatus): Promise<Pengiriman> {
+  return readJson(
+    await fetchManage(`/api/supir/pengiriman/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+    "Failed to update pengiriman status",
+  );
+}
+
+export async function approvePengirimanByMandor(id: string): Promise<Pengiriman> {
+  return readJson(
+    await fetchManage(`/api/mandor/pengiriman/${id}/approve`, { method: "POST" }),
+    "Failed to approve pengiriman by mandor",
+  );
+}
+
+export async function rejectPengirimanByMandor(id: string, reason: string): Promise<Pengiriman> {
+  return readJson(
+    await fetchManage(`/api/mandor/pengiriman/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+    "Failed to reject pengiriman by mandor",
+  );
+}
+
+export async function approvePengirimanByAdmin(id: string): Promise<Pengiriman> {
+  return readJson(
+    await fetchManage(`/api/admin/pengiriman/${id}/approve`, { method: "POST" }),
+    "Failed to approve pengiriman by admin",
+  );
+}
+
+export async function partiallyApprovePengirimanByAdmin(
+  id: string,
+  recognizedKg: number,
+  reason: string,
+): Promise<Pengiriman> {
+  return readJson(
+    await fetchManage(`/api/admin/pengiriman/${id}/partial-reject`, {
+      method: "POST",
+      body: JSON.stringify({ recognizedKg, reason }),
+    }),
+    "Failed to partially approve pengiriman",
+  );
+}
+
+export async function rejectPengirimanByAdmin(id: string, reason: string): Promise<Pengiriman> {
+  return readJson(
+    await fetchManage(`/api/admin/pengiriman/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+    "Failed to reject pengiriman by admin",
+  );
+}
 
 export type UserSummary = {
   id: string;
@@ -246,52 +513,115 @@ export type UserSummary = {
   kontak: string;
 };
 
+export type UserDetail = UserSummary & {
+  active: boolean;
+  supervisorCertNumber?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
 export async function getUsersByRole(role: string): Promise<UserSummary[]> {
-  const res = await fetchAuth(`/api/users?role=${encodeURIComponent(role)}`);
-  if (!res.ok) throw new Error(`Failed to fetch users: ${res.status}`);
-  return res.json();
+  return readJson(await fetchAuth(`/api/users?role=${encodeURIComponent(role)}`), "Failed to fetch users");
+}
+
+export async function searchUsers(filters: { name?: string; email?: string; role?: string }): Promise<UserSummary[]> {
+  const params = new URLSearchParams();
+  if (filters.name) params.set("name", filters.name);
+  if (filters.email) params.set("email", filters.email);
+  if (filters.role) params.set("role", filters.role);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return readJson(await fetchAuth(`/api/users${query}`), "Failed to search users");
+}
+
+export async function getUserById(id: string): Promise<UserDetail> {
+  return readJson(await fetchAuth(`/api/users/${id}`), "Failed to fetch user");
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await readJson<void>(
+    await fetchAuth(`/api/users/${id}`, { method: "DELETE" }),
+    "Failed to delete user",
+  );
 }
 
 export async function getUsersByIds(ids: string[]): Promise<UserSummary[]> {
-  const res = await fetchAuth("/api/users/by-ids", {
-    method: "POST",
-    body: JSON.stringify(ids),
-  });
-  if (!res.ok) throw new Error(`Failed to fetch users by ids: ${res.status}`);
-  return res.json();
+  if (ids.length === 0) return [];
+  return readJson(
+    await fetchAuth("/api/users/by-ids", {
+      method: "POST",
+      body: JSON.stringify(ids),
+    }),
+    "Failed to fetch users by ids",
+  );
 }
 
-// ─── Payment Service ──────────────────────────────────────────────────────────
+// === Worker ↔ Mandor assignment ===
 
-const PAYMENT_API_BASE = process.env.NEXT_PUBLIC_PAYMENT_API_BASE_URL ?? "http://localhost:8082";
+export type WorkerAssignment = {
+  workerId: string;
+  mandorId: string;
+  assignedAt: string;
+  updatedAt: string;
+};
 
-async function fetchPayment(path: string, init?: RequestInit): Promise<Response> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(init?.headers as Record<string, string> ?? {}),
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-
-  try {
-    return await fetch(`${PAYMENT_API_BASE}${path}`, { ...init, headers });
-  } catch (err) {
-    throw new Error(`Cannot connect to payment service at ${PAYMENT_API_BASE}. Is the backend running?`);
-  }
+export async function assignWorkerToMandor(workerId: string, mandorId: string): Promise<WorkerAssignment> {
+  return readJson(
+    await fetchManage("/api/admin/worker-assignments", {
+      method: "POST",
+      body: JSON.stringify({ workerId, mandorId }),
+    }),
+    "Failed to assign worker",
+  );
 }
 
-// ─── Payroll ──────────────────────────────────────────────────────────────────
+export async function unassignWorker(workerId: string): Promise<void> {
+  await readJson<void>(
+    await fetchManage(`/api/admin/worker-assignments/${workerId}`, { method: "DELETE" }),
+    "Failed to unassign worker",
+  );
+}
+
+export async function getAllWorkerAssignments(): Promise<WorkerAssignment[]> {
+  return readJson(
+    await fetchManage("/api/admin/worker-assignments"),
+    "Failed to fetch worker assignments",
+  );
+}
+
+export async function getWorkersForMandor(mandorId: string): Promise<WorkerAssignment[]> {
+  return readJson(
+    await fetchManage(`/api/admin/worker-assignments/by-mandor/${mandorId}`),
+    "Failed to fetch workers for mandor",
+  );
+}
+
+export async function getMyAssignedWorkers(): Promise<WorkerAssignment[]> {
+  return readJson(
+    await fetchManage("/api/mandor/workers"),
+    "Failed to fetch my workers",
+  );
+}
+
+export async function getWorkerAssignment(workerId: string): Promise<WorkerAssignment | null> {
+  const response = await fetchManage(`/api/admin/worker-assignments/by-worker/${workerId}`);
+  if (response.status === 404) return null;
+  return readJson(response, "Failed to fetch worker assignment");
+}
 
 export type PayrollSummary = {
   id: number;
   userId: string;
-  userName: string;
-  role: string;
-  amount: number;
-  description: string;
+  type: string;
   status: string;
+  amount: number;
+  quantityKg: number;
+  ratePerKg: number;
+  description: string;
+  calculationDetail?: string;
+  rejectionReason?: string;
   createdAt: string;
-  reason?: string;
+  processedAt?: string;
+  userName?: string;
 };
 
 export async function getPayrolls(status?: string, userId?: string): Promise<PayrollSummary[]> {
@@ -299,41 +629,45 @@ export async function getPayrolls(status?: string, userId?: string): Promise<Pay
   if (status) params.set("status", status);
   if (userId) params.set("userId", userId);
   const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchPayment(`/api/payrolls${query}`);
-  if (!res.ok) throw new Error(`Failed to fetch payrolls: ${res.status}`);
-  return res.json();
+  return readJson(await fetchPayment(`/api/payrolls${query}`), "Failed to fetch payrolls");
 }
 
 export async function approvePayroll(payrollId: number, adminUserId: string): Promise<PayrollSummary> {
-  const res = await fetchPayment(`/api/payrolls/${payrollId}/approve`, {
-    method: "PATCH",
-    body: JSON.stringify({ adminUserId }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Failed to approve payroll: ${res.status}`);
-  }
-  return res.json();
+  return readJson(
+    await fetchPayment(`/api/payrolls/${payrollId}/approve`, {
+      method: "PATCH",
+      body: JSON.stringify({ adminUserId }),
+    }),
+    "Failed to approve payroll",
+  );
 }
 
 export async function rejectPayroll(payrollId: number, reason: string): Promise<PayrollSummary> {
-  const res = await fetchPayment(`/api/payrolls/${payrollId}/reject`, {
-    method: "PATCH",
-    body: JSON.stringify({ reason }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Failed to reject payroll: ${res.status}`);
-  }
-  return res.json();
+  return readJson(
+    await fetchPayment(`/api/payrolls/${payrollId}/reject`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason }),
+    }),
+    "Failed to reject payroll",
+  );
 }
-
-// ─── Wallet ───────────────────────────────────────────────────────────────────
 
 export type WalletDashboard = {
   userId: string;
   balance: number;
-  payrollHistory: { id: number; amount: number; status: string; description: string; createdAt: string }[];
+  payrollHistory: {
+    id: number;
+    type: string;
+    status: string;
+    amount: number;
+    description: string;
+    quantityKg?: number;
+    ratePerKg?: number;
+    calculationDetail?: string;
+    rejectionReason?: string;
+    createdAt: string;
+    processedAt?: string;
+  }[];
 };
 
 export async function getWallet(userId: string, status?: string, fromDate?: string, toDate?: string): Promise<WalletDashboard> {
@@ -342,56 +676,49 @@ export async function getWallet(userId: string, status?: string, fromDate?: stri
   if (fromDate) params.set("fromDate", fromDate);
   if (toDate) params.set("toDate", toDate);
   const query = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetchPayment(`/api/wallets/${userId}${query}`);
-  if (!res.ok) throw new Error(`Failed to fetch wallet: ${res.status}`);
-  return res.json();
+  return readJson(await fetchPayment(`/api/wallets/${userId}${query}`), "Failed to fetch wallet");
 }
 
-// ─── Wage Config ──────────────────────────────────────────────────────────────
-
 export type WageConfig = {
-  buruhPerKg: number;
-  supirPerKg: number;
-  mandorPerKg: number;
+  buruhRatePerKg: number;
+  supirRatePerKg: number;
+  mandorRatePerKg: number;
 };
 
 export async function getWageConfig(): Promise<WageConfig> {
-  const res = await fetchPayment("/api/admin/config/wages");
-  if (!res.ok) throw new Error(`Failed to fetch wage config: ${res.status}`);
-  return res.json();
+  return readJson(await fetchPayment("/api/admin/config/wages"), "Failed to fetch wage config");
 }
 
 export async function updateWageConfig(data: Partial<WageConfig>): Promise<WageConfig> {
-  const res = await fetchPayment("/api/admin/config/wages", {
-    method: "PATCH",
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Failed to update wage config: ${res.status}`);
-  }
-  return res.json();
+  return readJson(
+    await fetchPayment("/api/admin/config/wages", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+    "Failed to update wage config",
+  );
 }
 
-// ─── Top Up (Payment Gateway) ─────────────────────────────────────────────────
-
 export type TopUpResult = {
-  id: number;
   reference: string;
-  amountSawitDollar: number;
-  amountIdr: number;
+  adminUserId: string;
+  amountRupiah: number;
+  creditedAmount: number;
   status: string;
-  paymentUrl?: string;
+  gatewayUrl?: string;
+  createdAt: string;
+  paidAt?: string;
 };
 
-export async function createTopUp(userId: string, amountSawitDollar: number): Promise<TopUpResult> {
-  const res = await fetchPayment("/api/payments/create", {
-    method: "POST",
-    body: JSON.stringify({ userId, amountSawitDollar }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `Failed to create top-up: ${res.status}`);
-  }
-  return res.json();
+export async function createTopUp(adminUserId: string, amountSawitDollar: number): Promise<TopUpResult> {
+  return readJson(
+    await fetchPayment("/api/payments/create", {
+      method: "POST",
+      body: JSON.stringify({
+        adminUserId,
+        amountRupiah: amountSawitDollar * 10000,
+      }),
+    }),
+    "Failed to create top-up",
+  );
 }

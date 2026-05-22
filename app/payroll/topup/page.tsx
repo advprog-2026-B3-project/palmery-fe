@@ -32,7 +32,7 @@ export default function TopUpPage() {
     setError(null);
     try {
       const result = await createTopUp(authUser.sub, amountNum);
-      setSuccess({ reference: result.reference, amountIdr: result.amountIdr ?? total });
+      setSuccess({ reference: result.reference, amountIdr: result.amountRupiah ?? total });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed");
     } finally {
@@ -71,9 +71,9 @@ export default function TopUpPage() {
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Thank you for your purchase!</h2>
+                <h2 className="text-2xl font-bold mb-2">Top up request created</h2>
                 <p className="text-sm text-[var(--color-text-muted)] mb-6">
-                  The invoice has been sent to your email. Your transaction for <strong>Palmery Plantation Services</strong> is complete.
+                  Request tersimpan di payment service. Selesaikan pembayaran melalui gateway agar saldo wallet bertambah.
                 </p>
                 <div className="border border-[var(--color-border)] rounded-lg p-4 mb-6 text-sm">
                   <div className="flex justify-between py-1">

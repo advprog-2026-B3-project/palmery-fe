@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/lib/useAuth";
-import { getActivePengirimanMandor, getPendingPengiriman, type Pengiriman } from "@/lib/api";
+import {
+  getActivePengirimanMandor,
+  getActivePengirimanSupir,
+  getPendingPengiriman,
+  type Pengiriman,
+} from "@/lib/api";
 
 export default function PengirimanListPage() {
   const { isAdmin, isMandor, isSupir } = useAuth();
@@ -20,11 +25,11 @@ export default function PengirimanListPage() {
     setLoading(true);
     setError(null);
     try {
-      // Admin sees pengiriman approved by mandor (pending admin review)
-      // Mandor/Supir sees active pengiriman
       const data = isAdmin
         ? await getPendingPengiriman()
-        : await getActivePengirimanMandor();
+        : isSupir
+          ? await getActivePengirimanSupir()
+          : await getActivePengirimanMandor();
       setPengiriman(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load pengiriman");
@@ -122,10 +127,18 @@ export default function PengirimanListPage() {
                     <td className="px-4 py-3 text-[var(--color-text-muted)]">
                       {new Date(p.created_at).toLocaleDateString("id-ID")}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 flex gap-3">
                       <Link href={`/pengiriman/${p.id}`} className="text-[var(--color-primary)] hover:underline text-sm">
                         Detail
                       </Link>
+                      {isMandor && p.supir_id && (
+                        <Link
+                          href={`/pengiriman/supir/${p.supir_id}`}
+                          className="text-[var(--color-text-muted)] hover:underline text-sm"
+                        >
+                          Profil Supir
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}

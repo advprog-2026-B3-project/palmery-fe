@@ -27,13 +27,20 @@
 
   /* Sidebar */
   --sidebar-width: 220px;
-  --sidebar-active-bg: #8DB600;
+  --sidebar-active-bg: var(--color-accent);
   --sidebar-active-text: #FFFFFF;
 }
 
 @theme inline {
   --color-background: var(--color-bg);
   --color-foreground: var(--color-text);
+  --color-palmery-primary: var(--color-primary);
+  --color-palmery-primary-light: var(--color-primary-light);
+  --color-palmery-accent: var(--color-accent);
+  --color-palmery-bg: var(--color-bg);
+  --color-palmery-card: var(--color-bg-card);
+  --color-palmery-muted: var(--color-text-muted);
+  --color-palmery-border: var(--color-border);
   --font-sans: var(--font-primary);
   --font-mono: var(--font-mono);
 }
@@ -48,6 +55,28 @@ body {
   font-family: var(--font-primary);
   margin: 0;
   min-height: 100vh;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  background: var(--color-bg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 ::-webkit-scrollbar {

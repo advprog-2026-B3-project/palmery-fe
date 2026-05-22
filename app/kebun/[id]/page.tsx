@@ -4,20 +4,46 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getPlantationById, getUsersByIds, type PlantationDetail, type UserSummary } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
+import {
+  assignMandorToPlantation,
+  assignSupirToPlantation,
+  getPlantationById,
+  getPlantations,
+  getUsersByIds,
+  getUsersByRole,
+  transferMandorBetweenPlantations,
+  transferSupirBetweenPlantations,
+  unassignMandorFromPlantation,
+  unassignSupirFromPlantation,
+  type PlantationDetail,
+  type PlantationSummary,
+  type UserSummary,
+} from "@/lib/api";
 
 export default function KebunDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { isAdmin } = useAuth();
 
   const [plantation, setPlantation] = useState<PlantationDetail | null>(null);
+  const [otherPlantations, setOtherPlantations] = useState<PlantationSummary[]>([]);
   const [mandors, setMandors] = useState<UserSummary[]>([]);
+  const [supirs, setSupirs] = useState<UserSummary[]>([]);
+  const [mandorOptions, setMandorOptions] = useState<UserSummary[]>([]);
+  const [supirOptions, setSupirOptions] = useState<UserSummary[]>([]);
+  const [selectedMandor, setSelectedMandor] = useState("");
+  const [selectedSupir, setSelectedSupir] = useState("");
+  const [transferTarget, setTransferTarget] = useState<{ personnelId: string; role: "MANDOR" | "SUPIR" } | null>(null);
+  const [transferToPlantation, setTransferToPlantation] = useState("");
   const [loading, setLoading] = useState(true);
+  const [savingAssignment, setSavingAssignment] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlantation();
-  }, [id]);
+  }, [id, isAdmin]);
 
   async function loadPlantation() {
     setLoading(true);
@@ -26,19 +52,43 @@ export default function KebunDetailPage() {
       const data = await getPlantationById(id);
       setPlantation(data);
 
-      // Load mandor names
-      if (data.assignedMandorIds && data.assignedMandorIds.length > 0) {
-        try {
-          const users = await getUsersByIds(data.assignedMandorIds);
-          setMandors(users);
-        } catch {
-          // silently fail - mandor names are optional
-        }
+      const assignedIds = [
+        ...(data.assignedMandorIds ?? []),
+        ...(data.assignedSupirIds ?? []),
+      ];
+      const assignedUsers = assignedIds.length > 0 ? await getUsersByIds(assignedIds) : [];
+      setMandors(assignedUsers.filter((user) => data.assignedMandorIds?.includes(user.id)));
+      setSupirs(assignedUsers.filter((user) => data.assignedSupirIds?.includes(user.id)));
+
+      if (isAdmin) {
+        const [availableMandors, availableSupirs, allPlantations] = await Promise.all([
+          getUsersByRole("SUPERVISOR"),
+          getUsersByRole("DRIVER"),
+          getPlantations(),
+        ]);
+        setMandorOptions(availableMandors);
+        setSupirOptions(availableSupirs);
+        setOtherPlantations(allPlantations.filter((p) => p.id !== id));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load plantation");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleAssignment(action: () => Promise<void>, successMessage: string) {
+    setSavingAssignment(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await action();
+      setMessage(successMessage);
+      await loadPlantation();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan assignment");
+    } finally {
+      setSavingAssignment(false);
     }
   }
 
@@ -50,7 +100,7 @@ export default function KebunDetailPage() {
     );
   }
 
-  if (error || !plantation) {
+  if (!plantation) {
     return (
       <DashboardLayout allowedRoles={["ADMIN", "MANDOR"]}>
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
@@ -106,28 +156,40 @@ export default function KebunDetailPage() {
           </div>
         </div>
 
+        {message && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700 mb-4">
+            {message}
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4">
+            {error}
+          </div>
+        )}
+
         {/* Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-[var(--color-border)] p-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-[var(--color-text-muted)]">Panen Bulan Ini</p>
+              <p className="text-sm text-[var(--color-text-muted)]">Luas Terdaftar</p>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
               </svg>
             </div>
-            <p className="text-3xl font-bold">124.5 <span className="text-sm font-normal text-[var(--color-text-muted)]">Ton</span></p>
-            <p className="text-xs text-green-600 mt-1">+12% vs bulan lalu</p>
+            <p className="text-3xl font-bold">{plantation.areaHa} <span className="text-sm font-normal text-[var(--color-text-muted)]">Ha</span></p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Nilai dari backend manage</p>
           </div>
 
           <div className="bg-white rounded-xl border border-[var(--color-border)] p-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-[var(--color-text-muted)]">Rerata Rendemen (OER)</p>
+              <p className="text-sm text-[var(--color-text-muted)]">Supir Ditugaskan</p>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/>
               </svg>
             </div>
-            <p className="text-3xl font-bold">23.8 <span className="text-sm font-normal text-[var(--color-text-muted)]">%</span></p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-1">Grade A &nbsp; Kualitas Premium</p>
+            <p className="text-3xl font-bold">{supirs.length}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Dipakai filter supir pengiriman</p>
           </div>
 
           {/* Mandor Card */}
@@ -159,90 +221,259 @@ export default function KebunDetailPage() {
           </div>
         </div>
 
+        <div className="bg-white rounded-xl border border-[var(--color-border)] p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold">Assignment Kebun</h2>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Mandor dan supir yang terikat di kebun ini dipakai backend untuk filter panen dan pengiriman.
+              </p>
+            </div>
+            <button
+              onClick={loadPlantation}
+              className="rounded-full border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--color-border-light)]"
+            >
+              Refresh
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <h3 className="text-sm font-semibold mb-2">Mandor Assigned</h3>
+              <div className="space-y-2">
+                {mandors.length > 0 ? mandors.map((mandor) => (
+                  <div key={mandor.id} className="flex items-center justify-between rounded-lg border border-[var(--color-border-light)] px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">{mandor.nama}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{mandor.email}</p>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setTransferTarget({ personnelId: mandor.id, role: "MANDOR" });
+                            setTransferToPlantation("");
+                          }}
+                          disabled={savingAssignment}
+                          className="text-xs rounded-full border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border-light)] disabled:opacity-50"
+                        >
+                          Pindahkan
+                        </button>
+                        <button
+                          onClick={() => handleAssignment(
+                            () => unassignMandorFromPlantation(plantation.id, mandor.id),
+                            "Mandor berhasil dilepas dari kebun.",
+                          )}
+                          disabled={savingAssignment}
+                          className="text-xs rounded-full border border-red-200 px-3 py-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Lepas
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )) : (
+                  <p className="text-sm text-[var(--color-text-muted)]">Belum ada mandor ditugaskan.</p>
+                )}
+              </div>
+
+              {isAdmin && (
+                <div className="mt-3 flex gap-2">
+                  <select
+                    value={selectedMandor}
+                    onChange={(e) => setSelectedMandor(e.target.value)}
+                    className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">Pilih mandor...</option>
+                    {mandorOptions.map((mandor) => (
+                      <option key={mandor.id} value={mandor.id}>
+                        {mandor.nama} ({mandor.email})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      if (!selectedMandor) {
+                        setError("Pilih mandor terlebih dahulu.");
+                        return;
+                      }
+                      handleAssignment(
+                        () => assignMandorToPlantation(plantation.id, selectedMandor),
+                        "Mandor berhasil ditugaskan ke kebun.",
+                      );
+                    }}
+                    disabled={savingAssignment}
+                    className="rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    Assign
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold mb-2">Supir Assigned</h3>
+              <div className="space-y-2">
+                {supirs.length > 0 ? supirs.map((supir) => (
+                  <div key={supir.id} className="flex items-center justify-between rounded-lg border border-[var(--color-border-light)] px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">{supir.nama}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{supir.email}</p>
+                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setTransferTarget({ personnelId: supir.id, role: "SUPIR" });
+                            setTransferToPlantation("");
+                          }}
+                          disabled={savingAssignment}
+                          className="text-xs rounded-full border border-[var(--color-border)] px-3 py-1 hover:bg-[var(--color-border-light)] disabled:opacity-50"
+                        >
+                          Pindahkan
+                        </button>
+                        <button
+                          onClick={() => handleAssignment(
+                            () => unassignSupirFromPlantation(plantation.id, supir.id),
+                            "Supir berhasil dilepas dari kebun.",
+                          )}
+                          disabled={savingAssignment}
+                          className="text-xs rounded-full border border-red-200 px-3 py-1 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Lepas
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )) : (
+                  <p className="text-sm text-[var(--color-text-muted)]">Belum ada supir ditugaskan.</p>
+                )}
+              </div>
+
+              {isAdmin && (
+                <div className="mt-3 flex gap-2">
+                  <select
+                    value={selectedSupir}
+                    onChange={(e) => setSelectedSupir(e.target.value)}
+                    className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-white"
+                  >
+                    <option value="">Pilih supir...</option>
+                    {supirOptions.map((supir) => (
+                      <option key={supir.id} value={supir.id}>
+                        {supir.nama} ({supir.email})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      if (!selectedSupir) {
+                        setError("Pilih supir terlebih dahulu.");
+                        return;
+                      }
+                      handleAssignment(
+                        () => assignSupirToPlantation(plantation.id, selectedSupir),
+                        "Supir berhasil ditugaskan ke kebun.",
+                      );
+                    }}
+                    disabled={savingAssignment}
+                    className="rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                  >
+                    Assign
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Map placeholder */}
         <div className="bg-[var(--color-bg-dark)] rounded-xl h-48 md:h-64 mb-6 flex items-end p-4 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <p className="relative text-white text-sm">
-            📍 Koordinat: {plantation.coordTlLat?.toFixed(4)}° N, {plantation.coordTlLon?.toFixed(4)}° E
+            Koordinat: {plantation.coordTlLat?.toFixed(4)}° N, {plantation.coordTlLon?.toFixed(4)}° E
           </p>
         </div>
 
-        {/* Harvest Trend placeholder */}
-        <div className="bg-white rounded-xl border border-[var(--color-border)] p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold">Tren Hasil Panen</h2>
-              <p className="text-sm text-[var(--color-text-muted)]">Visualisasi data 6 bulan terakhir</p>
+        <div className="bg-white rounded-xl border border-[var(--color-border)] p-6">
+          <h2 className="font-bold mb-3">Koordinat Batas dari Backend</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="rounded-lg border border-[var(--color-border-light)] p-3">
+              <p className="text-xs text-[var(--color-text-muted)]">Top Left</p>
+              <p>{plantation.coordTlLat}, {plantation.coordTlLon}</p>
             </div>
-            <button className="rounded-full border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium">
-              6 Bulan Terakhir
-            </button>
-          </div>
-          <div className="h-40 flex items-end justify-between gap-2 px-4">
-            {["Mei", "Jun", "Jul", "Agu", "Sep", "Okt"].map((month, i) => (
-              <div key={month} className="flex-1 flex flex-col items-center gap-2">
-                <div
-                  className="w-full bg-[var(--color-accent)]/30 rounded-t"
-                  style={{ height: `${30 + Math.random() * 70}%` }}
-                />
-                <span className="text-xs text-[var(--color-text-muted)]">{month}</span>
-              </div>
-            ))}
+            <div className="rounded-lg border border-[var(--color-border-light)] p-3">
+              <p className="text-xs text-[var(--color-text-muted)]">Top Right</p>
+              <p>{plantation.coordTrLat}, {plantation.coordTrLon}</p>
+            </div>
+            <div className="rounded-lg border border-[var(--color-border-light)] p-3">
+              <p className="text-xs text-[var(--color-text-muted)]">Bottom Right</p>
+              <p>{plantation.coordBrLat}, {plantation.coordBrLon}</p>
+            </div>
+            <div className="rounded-lg border border-[var(--color-border-light)] p-3">
+              <p className="text-xs text-[var(--color-text-muted)]">Bottom Left</p>
+              <p>{plantation.coordBlLat}, {plantation.coordBlLon}</p>
+            </div>
           </div>
         </div>
 
-        {/* Log Panen Terbaru */}
-        <div className="bg-white rounded-xl border border-[var(--color-border)] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[var(--color-border)]">
-            <h2 className="font-bold">Log Panen Terbaru</h2>
+        {transferTarget && (
+          <div
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+            onClick={() => setTransferTarget(null)}
+          >
+            <div
+              className="bg-white rounded-xl border border-[var(--color-border)] p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-bold mb-2">
+                Pindahkan {transferTarget.role === "MANDOR" ? "Mandor" : "Supir"} ke Kebun Lain
+              </h3>
+              <p className="text-sm text-[var(--color-text-muted)] mb-4">
+                Operasi ini bersifat atomik. Personel akan dilepas dari kebun ini dan langsung ditugaskan ke kebun tujuan.
+              </p>
+
+              <label className="block text-xs font-medium text-[var(--color-text-muted)] mb-1">Kebun Tujuan</label>
+              <select
+                value={transferToPlantation}
+                onChange={(e) => setTransferToPlantation(e.target.value)}
+                className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm bg-white mb-4"
+              >
+                <option value="">Pilih kebun...</option>
+                {otherPlantations.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.code})
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setTransferTarget(null)}
+                  className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-border-light)]"
+                >
+                  Batal
+                </button>
+                <button
+                  disabled={!transferToPlantation || savingAssignment}
+                  onClick={() => {
+                    if (!transferToPlantation) return;
+                    const target = transferTarget;
+                    const action = target.role === "MANDOR"
+                      ? () => transferMandorBetweenPlantations(plantation.id, transferToPlantation, target.personnelId)
+                      : () => transferSupirBetweenPlantations(plantation.id, transferToPlantation, target.personnelId);
+                    handleAssignment(
+                      action,
+                      `${target.role === "MANDOR" ? "Mandor" : "Supir"} berhasil dipindahkan ke kebun tujuan.`,
+                    ).finally(() => setTransferTarget(null));
+                  }}
+                  className="rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  Pindahkan
+                </button>
+              </div>
+            </div>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[var(--color-border-light)]">
-                <th className="text-left px-6 py-3 font-medium text-[var(--color-text-muted)]">Tanggal</th>
-                <th className="text-left px-6 py-3 font-medium text-[var(--color-text-muted)]">Tonase (Kg)</th>
-                <th className="text-left px-6 py-3 font-medium text-[var(--color-text-muted)]">Status</th>
-                <th className="text-left px-6 py-3 font-medium text-[var(--color-text-muted)]">Pencatat</th>
-                <th className="text-left px-6 py-3 font-medium text-[var(--color-text-muted)]">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-[var(--color-border-light)]">
-                <td className="px-6 py-3">18 Okt 2023</td>
-                <td className="px-6 py-3">4,520 kg</td>
-                <td className="px-6 py-3">
-                  <span className="text-xs font-semibold text-green-600 uppercase">Verified</span>
-                </td>
-                <td className="px-6 py-3">Budi Santoso</td>
-                <td className="px-6 py-3">
-                  <button className="text-sm text-[var(--color-primary)] hover:underline">Detail</button>
-                </td>
-              </tr>
-              <tr className="border-b border-[var(--color-border-light)]">
-                <td className="px-6 py-3">16 Okt 2023</td>
-                <td className="px-6 py-3">3,890 kg</td>
-                <td className="px-6 py-3">
-                  <span className="text-xs font-semibold text-green-600 uppercase">Verified</span>
-                </td>
-                <td className="px-6 py-3">Budi Santoso</td>
-                <td className="px-6 py-3">
-                  <button className="text-sm text-[var(--color-primary)] hover:underline">Detail</button>
-                </td>
-              </tr>
-              <tr>
-                <td className="px-6 py-3">14 Okt 2023</td>
-                <td className="px-6 py-3">4,110 kg</td>
-                <td className="px-6 py-3">
-                  <span className="text-xs font-semibold text-yellow-600 uppercase">Pending</span>
-                </td>
-                <td className="px-6 py-3">Mandor Shift B</td>
-                <td className="px-6 py-3">
-                  <button className="text-sm text-[var(--color-primary)] hover:underline">Detail</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        )}
       </div>
     </DashboardLayout>
   );

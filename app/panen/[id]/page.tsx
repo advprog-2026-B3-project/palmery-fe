@@ -4,15 +4,19 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
-import { getHarvestById, type HarvestResult } from "@/lib/api";
+import { useAuth } from "@/lib/useAuth";
+import { getHarvestById, resolvePhotoUrl, validateHarvest, type HarvestResult } from "@/lib/api";
 
 export default function PanenDetailPage() {
   const params = useParams();
   const id = params.id as string;
+  const { isMandor } = useAuth();
 
   const [harvest, setHarvest] = useState<HarvestResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   useEffect(() => {
     loadHarvest();
@@ -57,6 +61,25 @@ export default function PanenDetailPage() {
     }
   }
 
+  async function handleValidate(status: "APPROVED" | "REJECTED") {
+    if (status === "REJECTED" && !rejectReason.trim()) {
+      setError("Alasan penolakan wajib diisi.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await validateHarvest(id, status, status === "REJECTED" ? rejectReason.trim() : undefined);
+      setHarvest(updated);
+      setRejectReason("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memvalidasi panen");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <DashboardLayout allowedRoles={["ADMIN", "MANDOR", "BURUH"]}>
       <div className="max-w-5xl">
@@ -70,21 +93,19 @@ export default function PanenDetailPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <h1 className="text-2xl md:text-3xl font-bold">Detail Hasil Panen</h1>
-          <div className="flex items-center gap-3">
-            <button className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-border-light)] transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
-              </svg>
-              Print Label
-            </button>
-            <button className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-              </svg>
-              Share Report
-            </button>
-          </div>
+          <button
+            onClick={loadHarvest}
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-border-light)] transition-colors"
+          >
+            Refresh
+          </button>
         </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 mb-4">
+            {error}
+          </div>
+        )}
 
         {/* Top Info Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -142,40 +163,83 @@ export default function PanenDetailPage() {
         </div>
 
         {/* Photo & Workflow */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className={`grid grid-cols-1 gap-4 mb-6 ${isMandor ? "md:grid-cols-3" : ""}`}>
           {/* Photo */}
-          <div className="md:col-span-2 bg-white rounded-xl border border-[var(--color-border)] p-5">
+          <div className={`bg-white rounded-xl border border-[var(--color-border)] p-5 ${isMandor ? "md:col-span-2" : ""}`}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold">Foto Bukti Lapangan</h3>
-              <button className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
-                </svg>
-              </button>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {harvest.photos?.length ?? 0} foto
+              </span>
             </div>
-            <div className="h-48 md:h-64 rounded-lg bg-[var(--color-bg-dark)]/20 border border-[var(--color-border-light)] flex items-center justify-center text-[var(--color-text-muted)]">
-              {harvest.photos && harvest.photos.length > 0 ? (
-                <p className="text-sm">{harvest.photos.length} foto tersedia</p>
-              ) : (
+            {harvest.photos && harvest.photos.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {harvest.photos.map((photo, idx) => {
+                  const photoSrc = resolvePhotoUrl(photo.url);
+                  return (
+                  <a
+                    key={photo.id ?? `${photo.url}-${idx}`}
+                    href={photoSrc}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg overflow-hidden border border-[var(--color-border-light)] bg-[var(--color-border-light)] aspect-square relative group"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photoSrc}
+                      alt={photo.filename ?? `Foto ${idx + 1}`}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        img.style.display = "none";
+                        const fallback = img.nextElementSibling as HTMLElement | null;
+                        if (fallback) fallback.style.display = "flex";
+                      }}
+                    />
+                    <div
+                      className="absolute inset-0 hidden items-center justify-center text-xs text-[var(--color-text-muted)] p-2 text-center"
+                    >
+                      Foto tidak dapat dimuat
+                      <br />
+                      <span className="truncate max-w-full">{photo.filename}</span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="text-[10px] text-white truncate">{photo.filename}</p>
+                    </div>
+                  </a>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-48 md:h-64 rounded-lg bg-[var(--color-bg-dark)]/20 border border-[var(--color-border-light)] flex items-center justify-center text-[var(--color-text-muted)]">
                 <p className="text-sm">Tidak ada foto</p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* Workflow */}
+          {/* Workflow — only shown to Mandor */}
+          {isMandor && (
           <div className="bg-white rounded-xl border border-[var(--color-border)] p-5">
             <h3 className="font-semibold mb-2">Workflow Persetujuan</h3>
             <p className="text-sm text-[var(--color-text-muted)] mb-4">
               Pastikan data berat dan foto bukti sesuai dengan standar operasional sebelum memberikan persetujuan.
             </p>
             <div className="flex flex-col gap-3">
-              <button className="w-full rounded-full bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] transition-colors flex items-center justify-center gap-2">
+              <button
+                onClick={() => handleValidate("APPROVED")}
+                disabled={!isMandor || harvest.status !== "PENDING" || saving}
+                className="w-full rounded-full bg-[var(--color-primary)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
-                Approve Harvest
+                {saving ? "Memproses..." : "Approve Harvest"}
               </button>
-              <button className="w-full rounded-full border-2 border-red-300 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+              <button
+                onClick={() => handleValidate("REJECTED")}
+                disabled={!isMandor || harvest.status !== "PENDING" || saving}
+                className="w-full rounded-full border-2 border-red-300 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
@@ -185,21 +249,38 @@ export default function PanenDetailPage() {
 
             <div className="mt-4">
               <label className="block text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
-                Catatan Manager (Opsional)
+                Catatan Manager (Wajib jika menolak)
               </label>
               <textarea
-                placeholder="Masukkan catatan atau instruksi tambahan..."
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Wajib diisi jika menolak laporan..."
+                disabled={harvest.status !== "PENDING"}
                 className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50"
               />
             </div>
+            {harvest.status !== "PENDING" && (
+              <p className="text-xs text-[var(--color-text-muted)] mt-3">
+                Laporan ini sudah diproses dan tidak dapat diubah lagi.
+              </p>
+            )}
           </div>
+          )}
         </div>
 
         {/* Notes */}
         {harvest.notes && (
-          <div className="bg-white rounded-xl border border-[var(--color-border)] p-5">
+          <div className="bg-white rounded-xl border border-[var(--color-border)] p-5 mb-4">
             <h3 className="font-semibold mb-2">Catatan</h3>
             <p className="text-sm text-[var(--color-text-muted)]">{harvest.notes}</p>
+          </div>
+        )}
+
+        {/* Rejection reason — visible to everyone when rejected */}
+        {harvest.status === "REJECTED" && harvest.rejectionReason && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+            <h3 className="font-semibold mb-2 text-red-800">Alasan Penolakan dari Mandor</h3>
+            <p className="text-sm text-red-700">{harvest.rejectionReason}</p>
           </div>
         )}
       </div>

@@ -9,7 +9,7 @@ export default function SawitBidPage() {
           Platform lelang komoditas sawit real-time.
         </p>
         <div className="mt-8 bg-white rounded-xl border border-[var(--color-border)] p-12 text-center">
-          <p className="text-[var(--color-text-muted)]">Coming soon — fitur lelang dalam pengembangan.</p>
+          <p className="text-[var(--color-text-muted)]">Coming soon - fitur lelang dalam pengembangan.</p>
         </div>
       </div>
     </DashboardLayout>
