@@ -76,7 +76,9 @@ async function fetchManage(path: string, init?: RequestInit): Promise<Response> 
       headers: buildHeaders(init, true),
     });
   } catch {
-    throw new Error(`Cannot connect to manage service at ${MANAGE_API_BASE}. Is the backend running?`);
+    throw new Error(
+      `Manage service at ${MANAGE_API_BASE} is unavailable or still starting. Retry in a moment if a deployment is in progress.`,
+    );
   }
 }
 
