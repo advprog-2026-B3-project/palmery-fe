@@ -130,7 +130,7 @@ async function fetchPayment(path: string, init?: RequestInit): Promise<Response>
   try {
     return await fetch(`${PAYMENT_API_BASE}${path}`, {
       ...init,
-      headers: buildHeaders(init, true),
+      headers: buildHeaders(init),
     });
   } catch {
     throw new Error(`Cannot connect to payment service at ${PAYMENT_API_BASE}. Is the backend running?`);
@@ -653,11 +653,11 @@ export async function getPayrolls(status?: string, userId?: string): Promise<Pay
   return readJson(await fetchPayment(`/api/payrolls${query}`), "Failed to fetch payrolls");
 }
 
-export async function approvePayroll(payrollId: number, adminUserId: string): Promise<PayrollSummary> {
+export async function approvePayroll(payrollId: number, _adminUserId: string): Promise<PayrollSummary> {
   return readJson(
     await fetchPayment(`/api/payrolls/${payrollId}/approve`, {
       method: "PATCH",
-      body: JSON.stringify({ adminUserId }),
+      body: JSON.stringify({}),
     }),
     "Failed to approve payroll",
   );
@@ -731,12 +731,11 @@ export type TopUpResult = {
   paidAt?: string;
 };
 
-export async function createTopUp(adminUserId: string, amountSawitDollar: number): Promise<TopUpResult> {
+export async function createTopUp(_adminUserId: string, amountSawitDollar: number): Promise<TopUpResult> {
   return readJson(
     await fetchPayment("/api/payments/create", {
       method: "POST",
       body: JSON.stringify({
-        adminUserId,
         amountRupiah: amountSawitDollar * 10000,
       }),
     }),
