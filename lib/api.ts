@@ -627,6 +627,8 @@ export type PayrollSummary = {
   ratePerKg: number;
   description: string;
   calculationDetail?: string;
+  sourceType?: "HASIL_PANEN" | "PENGIRIMAN" | string;
+  sourceId?: string;
   rejectionReason?: string;
   createdAt: string;
   processedAt?: string;

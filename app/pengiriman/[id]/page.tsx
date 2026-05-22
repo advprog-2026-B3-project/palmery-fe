@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -30,22 +30,22 @@ export default function PengirimanDetailPage() {
   const [adminReason, setAdminReason] = useState("");
   const [recognizedKg, setRecognizedKg] = useState("");
 
-  useEffect(() => {
-    loadPengiriman();
-  }, [id]);
-
-  async function loadPengiriman() {
-    setLoading(true);
-    setError(null);
-    try {
+	  const loadPengiriman = useCallback(async () => {
+	    setLoading(true);
+	    setError(null);
+	    try {
       const data = await getPengirimanById(id);
       setPengiriman(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load pengiriman");
-    } finally {
-      setLoading(false);
-    }
-  }
+	    } finally {
+	      setLoading(false);
+	    }
+	  }, [id]);
+
+	  useEffect(() => {
+	    void loadPengiriman();
+	  }, [loadPengiriman]);
 
   if (loading) {
     return (
@@ -106,14 +106,59 @@ export default function PengirimanDetailPage() {
       && pengiriman.mandor_approval_status === "PENDING";
   }
 
-  function canAdminReview() {
-    return isAdmin
-      && pengiriman?.mandor_approval_status === "APPROVED"
-      && pengiriman.admin_approval_status === "PENDING";
-  }
+	  function canAdminReview() {
+	    return isAdmin
+	      && pengiriman?.mandor_approval_status === "APPROVED"
+	      && pengiriman.admin_approval_status === "PENDING";
+	  }
 
-  const driverNextStatus = nextDriverStatus(pengiriman.status);
-  const parsedRecognizedKg = Number.parseInt(recognizedKg, 10);
+	  function payrollImpact(shipment: Pengiriman) {
+	    if (shipment.mandor_approval_status === "REJECTED") {
+	      return {
+	        title: "Payroll supir tidak dibuat",
+	        description: "Mandor menolak pengiriman, sehingga payment module tidak membuat payroll untuk Supir.",
+	        tone: "text-red-700 bg-red-50 border-red-200",
+	      };
+	    }
+	    if (shipment.mandor_approval_status === "PENDING") {
+	      return {
+	        title: "Menunggu payroll supir",
+	        description: "Payroll Supir dibuat sebagai PENDING setelah Mandor approve pengiriman yang sudah tiba.",
+	        tone: "text-yellow-700 bg-yellow-50 border-yellow-200",
+	      };
+	    }
+	    if (shipment.admin_approval_status === "REJECTED") {
+	      return {
+	        title: "Payroll mandor tidak dibuat",
+	        description: "Admin menolak hasil pengiriman pabrik, sehingga payment module tidak membuat payroll untuk Mandor.",
+	        tone: "text-red-700 bg-red-50 border-red-200",
+	      };
+	    }
+	    if (shipment.admin_approval_status === "PARTIALLY_APPROVED") {
+	      const acceptedKg = shipment.accepted_kg_by_admin ?? shipment.recognized_kg ?? 0;
+	      return {
+	        title: "Payroll mandor dibuat partial",
+	        description: `Payment module membuat payroll Mandor PENDING berdasarkan ${acceptedKg} kg yang diterima Admin.`,
+	        tone: "text-yellow-700 bg-yellow-50 border-yellow-200",
+	      };
+	    }
+	    if (shipment.admin_approval_status === "APPROVED") {
+	      return {
+	        title: "Payroll mandor dibuat penuh",
+	        description: `Payment module membuat payroll Mandor PENDING berdasarkan ${shipment.total_kg} kg.`,
+	        tone: "text-green-700 bg-green-50 border-green-200",
+	      };
+	    }
+	    return {
+	      title: "Payroll supir sudah dibuat",
+	      description: "Mandor sudah approve pengiriman. Payment module membuat payroll Supir PENDING dan Admin perlu validasi pabrik untuk payroll Mandor.",
+	      tone: "text-green-700 bg-green-50 border-green-200",
+	    };
+	  }
+
+	  const driverNextStatus = nextDriverStatus(pengiriman.status);
+	  const parsedRecognizedKg = Number.parseInt(recognizedKg, 10);
+	  const impact = payrollImpact(pengiriman);
 
   return (
     <DashboardLayout allowedRoles={["ADMIN", "MANDOR", "SUPIR"]}>
@@ -319,8 +364,8 @@ export default function PengirimanDetailPage() {
                 </div>
               )}
 
-              {isAdmin && (
-                <div className="space-y-3">
+	              {isAdmin && (
+	                <div className="space-y-3">
                   <p className="text-sm text-[var(--color-text-muted)]">
                     Admin memproses pengiriman yang sudah disetujui mandor.
                   </p>
@@ -355,11 +400,15 @@ export default function PengirimanDetailPage() {
                           setError("Alasan partial approval wajib diisi.");
                           return;
                         }
-                        if (!Number.isFinite(parsedRecognizedKg) || parsedRecognizedKg <= 0) {
-                          setError("Kg yang diakui harus lebih dari 0.");
-                          return;
-                        }
-                        runAction(() => partiallyApprovePengirimanByAdmin(
+	                        if (!Number.isFinite(parsedRecognizedKg) || parsedRecognizedKg <= 0) {
+	                          setError("Kg yang diakui harus lebih dari 0.");
+	                          return;
+	                        }
+	                        if (parsedRecognizedKg >= pengiriman.total_kg) {
+	                          setError("Kg partial harus lebih kecil dari total pengiriman.");
+	                          return;
+	                        }
+	                        runAction(() => partiallyApprovePengirimanByAdmin(
                           pengiriman.id,
                           parsedRecognizedKg,
                           adminReason.trim(),
@@ -390,9 +439,20 @@ export default function PengirimanDetailPage() {
               {!isAdmin && !isMandor && !isSupir && (
                 <p className="text-sm text-[var(--color-text-muted)]">Tidak ada aksi untuk role ini.</p>
               )}
-            </div>
+	            </div>
 
-            {/* Verification */}
+	            <div className={`rounded-xl border p-5 ${impact.tone}`}>
+	              <h3 className="text-sm font-semibold mb-2">Dampak Payroll</h3>
+	              <p className="text-sm">{impact.title}</p>
+	              <p className="text-xs mt-2 opacity-80">{impact.description}</p>
+	              {(isAdmin || isMandor || isSupir) && (
+	                <Link href="/payroll" className="mt-3 inline-flex text-xs font-medium underline">
+	                  Lihat payroll
+	                </Link>
+	              )}
+	            </div>
+
+	            {/* Verification */}
             <div className="bg-white rounded-xl border border-[var(--color-border)] p-5">
               <h3 className="text-xs uppercase tracking-wider text-[var(--color-text-muted)] font-semibold mb-3">
                 Verifikasi Keamanan
