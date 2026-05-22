@@ -49,7 +49,9 @@ export default function TambahPengirimanPage() {
   const totalKg = panenList
     .filter((p) => selectedPanen.includes(p.id))
     .reduce((sum, p) => sum + p.berat_kg, 0);
-  const canSubmit = drivers.length > 0 && panenList.length > 0 && totalKg <= MAX_PENGIRIMAN_KG;
+  const canPartiallyShipSingle = selectedPanen.length === 1 && totalKg > MAX_PENGIRIMAN_KG;
+  const shipmentKg = canPartiallyShipSingle ? MAX_PENGIRIMAN_KG : totalKg;
+  const canSubmit = drivers.length > 0 && panenList.length > 0 && (totalKg <= MAX_PENGIRIMAN_KG || canPartiallyShipSingle);
 
   function formatDate(date?: string) {
     if (!date) return "Tanggal panen tidak tersedia";
@@ -70,7 +72,7 @@ export default function TambahPengirimanPage() {
       setError("Pilih minimal satu hasil panen");
       return;
     }
-    if (totalKg > MAX_PENGIRIMAN_KG) {
+    if (selectedPanen.length > 1 && totalKg > MAX_PENGIRIMAN_KG) {
       setError(`Total pengiriman tidak boleh melebihi ${MAX_PENGIRIMAN_KG} kg`);
       return;
     }
@@ -141,7 +143,7 @@ export default function TambahPengirimanPage() {
                   <div className="relative">
                     <input
                       type="text"
-                      value={totalKg.toFixed(2)}
+                      value={shipmentKg.toFixed(2)}
                       readOnly
                       className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2.5 pr-12 text-sm bg-gray-50"
                     />
@@ -150,7 +152,11 @@ export default function TambahPengirimanPage() {
                   <p className="text-xs text-[var(--color-text-muted)] mt-1 italic">
                     Maksimal {MAX_PENGIRIMAN_KG} kg per pengiriman.
                   </p>
-                  {totalKg > MAX_PENGIRIMAN_KG && (
+                  {canPartiallyShipSingle ? (
+                    <p className="text-xs text-amber-700 mt-1">
+                      Satu panen besar akan otomatis diambil maksimal {MAX_PENGIRIMAN_KG} kg, sisanya tetap tersimpan di hasil panen.
+                    </p>
+                  ) : totalKg > MAX_PENGIRIMAN_KG && (
                     <p className="text-xs text-red-600 mt-1">
                       Kurangi hasil panen yang dipilih agar total tidak melebihi {MAX_PENGIRIMAN_KG} kg.
                     </p>
