@@ -13,27 +13,32 @@ import {
 } from "@/lib/api";
 
 export default function PengirimanListPage() {
-  const { isAdmin, isMandor, isSupir } = useAuth();
+  const { initialized, isAdmin, isMandor, isSupir } = useAuth();
   const [pengiriman, setPengiriman] = useState<Pengiriman[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [historyFrom, setHistoryFrom] = useState("");
   const [historyTo, setHistoryTo] = useState("");
-  const [showSupirHistory, setShowSupirHistory] = useState(false);
 
   useEffect(() => {
-    loadPengiriman();
-  }, []);
+    if (!initialized) {
+      return;
+    }
+    void loadPengiriman();
+  }, [initialized, isAdmin, isMandor, isSupir]);
 
-  async function loadPengiriman() {
+  async function loadPengiriman(options?: { history?: boolean; from?: string; to?: string }) {
     setLoading(true);
     setError(null);
     try {
+      const useHistory = options?.history ?? false;
+      const from = options?.from ?? historyFrom;
+      const to = options?.to ?? historyTo;
       const data = isAdmin
         ? await getPendingPengiriman()
         : isSupir
-          ? showSupirHistory && historyFrom && historyTo
-            ? await getRiwayatPengirimanSupir(historyFrom, historyTo)
+          ? useHistory && from && to
+            ? await getRiwayatPengirimanSupir(from, to)
             : await getActivePengirimanSupir()
           : await getActivePengirimanMandor();
       setPengiriman(data);
@@ -124,8 +129,7 @@ export default function PengirimanListPage() {
                       setError("Pilih tanggal mulai dan tanggal akhir untuk melihat riwayat.");
                       return;
                     }
-                    setShowSupirHistory(true);
-                    setTimeout(loadPengiriman, 0);
+                    loadPengiriman({ history: true, from: historyFrom, to: historyTo });
                   }}
                   className="rounded-full bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-light)]"
                 >
@@ -135,8 +139,7 @@ export default function PengirimanListPage() {
                   onClick={() => {
                     setHistoryFrom("");
                     setHistoryTo("");
-                    setShowSupirHistory(false);
-                    setTimeout(loadPengiriman, 0);
+                    loadPengiriman({ history: false });
                   }}
                   className="rounded-full border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-border-light)]"
                 >
