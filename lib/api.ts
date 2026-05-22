@@ -93,14 +93,24 @@ async function fetchManage(path: string, init?: RequestInit): Promise<Response> 
 export function resolvePhotoUrl(url?: string | null): string {
   if (!url) return "";
 
-  // Legacy absolute URL pointing at MinIO/RustFS — rewrite to proxy.
-  // Pattern: <minio>/<bucket>/<filename>
-  const minioMatch = url.match(/^https?:\/\/[^/]+\/[^/]+\/(.+)$/);
-  if (minioMatch && !url.includes("/api/harvests/photos/")) {
-    return `${MANAGE_API_BASE}/api/harvests/photos/${minioMatch[1]}`;
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+
+      if (parsed.pathname.startsWith("/api/harvests/photos/") || parsed.pathname.startsWith("/assets/")) {
+        return url;
+      }
+
+      const legacyPathParts = parsed.pathname.split("/").filter(Boolean);
+      if (legacyPathParts.length >= 2) {
+        const objectKey = legacyPathParts.slice(1).join("/");
+        return `${MANAGE_API_BASE}/api/harvests/photos/${objectKey}`;
+      }
+    } catch {
+      return url;
+    }
   }
 
-  if (/^https?:\/\//i.test(url)) return url;
   if (url.startsWith("/")) return `${MANAGE_API_BASE}${url}`;
   return url;
 }
