@@ -135,7 +135,7 @@ export default function PayrollPage() {
           >
             <option value="">Semua Status</option>
             <option value="PENDING">Pending</option>
-            <option value="APPROVED">Approved</option>
+            <option value="ACCEPTED">Accepted</option>
             <option value="REJECTED">Rejected</option>
           </select>
         </div>
