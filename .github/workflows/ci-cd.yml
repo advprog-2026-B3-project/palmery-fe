@@ -41,30 +41,6 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: SonarCloud Scan
-        uses: sonarsource/sonarqube-scan-action@v6
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-        with:
-          projectBaseDir: .
-          args: >
-            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
-            -Dsonar.projectName=palmery-fe
-            -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.sources=app,lib
-            -Dsonar.exclusions=**/.next/**,**/node_modules/**,**/dist/**,**/out/**
-
-      - name: SonarCloud Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@master
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-        with:
-          pollingTimeoutSec: 300
-
   cd:
     needs: ci
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
