@@ -12,6 +12,7 @@ const NAV_LINKS: { href: string; label: string; roles: UserRole[] }[] = [
   { href: "/kebun", label: "Kebun", roles: ["ADMIN", "MANDOR"] },
   { href: "/users", label: "Pengguna", roles: ["ADMIN"] },
   { href: "/assignment", label: "Penempatan Buruh", roles: ["ADMIN"] },
+  { href: "/driver-assignment", label: "Penempatan Supir", roles: ["ADMIN"] },
   { href: "/panen", label: "Panen", roles: ["MANDOR", "BURUH"] },
   { href: "/pengiriman", label: "Pengiriman", roles: ["ADMIN", "MANDOR", "SUPIR"] },
   { href: "/payroll", label: "Payroll", roles: ALL_ROLES },

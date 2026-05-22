@@ -5,18 +5,21 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { getDriversForMandor, getPanenSiapAngkut, createPengiriman } from "@/lib/api";
+import type { DriverOption, ReadyHarvest } from "@/lib/api";
+
+const MAX_PENGIRIMAN_KG = 400;
 
 export default function TambahPengirimanPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [drivers, setDrivers] = useState<{ id: string; nama: string }[]>([]);
-  const [panenList, setPanenList] = useState<{ id: string; berat_kg: number; kebun_id: string }[]>([]);
+  const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [panenList, setPanenList] = useState<ReadyHarvest[]>([]);
 
   const [selectedSupir, setSelectedSupir] = useState("");
   const [selectedPanen, setSelectedPanen] = useState<string[]>([]);
-  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     loadData();
@@ -30,8 +33,10 @@ export default function TambahPengirimanPage() {
       ]);
       setDrivers(d);
       setPanenList(p);
-    } catch {
-      // silently fail - user can still fill manually
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat data pengiriman");
+    } finally {
+      setLoadingData(false);
     }
   }
 
@@ -44,6 +49,16 @@ export default function TambahPengirimanPage() {
   const totalKg = panenList
     .filter((p) => selectedPanen.includes(p.id))
     .reduce((sum, p) => sum + p.berat_kg, 0);
+  const canSubmit = drivers.length > 0 && panenList.length > 0 && totalKg <= MAX_PENGIRIMAN_KG;
+
+  function formatDate(date?: string) {
+    if (!date) return "Tanggal panen tidak tersedia";
+    return new Intl.DateTimeFormat("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${date}T00:00:00`));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +68,10 @@ export default function TambahPengirimanPage() {
     }
     if (selectedPanen.length === 0) {
       setError("Pilih minimal satu hasil panen");
+      return;
+    }
+    if (totalKg > MAX_PENGIRIMAN_KG) {
+      setError(`Total pengiriman tidak boleh melebihi ${MAX_PENGIRIMAN_KG} kg`);
       return;
     }
 
@@ -82,7 +101,7 @@ export default function TambahPengirimanPage() {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold mb-2">Tambah Pengiriman</h1>
             <p className="text-[var(--color-text-muted)] mb-6 text-sm">
-              Masukan detail logistik pengiriman hasil panen untuk pelacakan armada.
+              Pengiriman dibuat dari Hasil Panen APPROVED yang siap angkut di kebun Anda.
             </p>
 
             {error && (
@@ -100,12 +119,20 @@ export default function TambahPengirimanPage() {
                     value={selectedSupir}
                     onChange={(e) => setSelectedSupir(e.target.value)}
                     className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50 focus:border-[var(--color-accent)] bg-white"
+                    disabled={loadingData || drivers.length === 0}
                   >
-                    <option value="">Pilih supir dari database...</option>
+                    <option value="">
+                      {loadingData ? "Memuat supir..." : "Pilih supir dari kebun yang sama..."}
+                    </option>
                     {drivers.map((d) => (
                       <option key={d.id} value={d.id}>{d.nama}</option>
                     ))}
                   </select>
+                  {!loadingData && drivers.length === 0 && (
+                    <p className="text-xs text-amber-700 mt-2">
+                      Belum ada Supir di kebun Anda. Admin perlu menempatkan Supir ke Kebun yang sama.
+                    </p>
+                  )}
                 </div>
 
                 {/* Total Kg */}
@@ -121,46 +148,74 @@ export default function TambahPengirimanPage() {
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)] font-medium">KG</span>
                   </div>
                   <p className="text-xs text-[var(--color-text-muted)] mt-1 italic">
-                    Berat bersih berdasarkan timbangan gerbang masuk.
+                    Maksimal {MAX_PENGIRIMAN_KG} kg per pengiriman.
                   </p>
+                  {totalKg > MAX_PENGIRIMAN_KG && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Kurangi hasil panen yang dipilih agar total tidak melebihi {MAX_PENGIRIMAN_KG} kg.
+                    </p>
+                  )}
                 </div>
 
                 {/* Pilih Panen */}
-                {panenList.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1.5">Pilih Hasil Panen</label>
-                    <div className="max-h-40 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-1">
-                      {panenList.map((p) => (
-                        <label key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--color-border-light)] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedPanen.includes(p.id)}
-                            onChange={() => togglePanen(p.id)}
-                            className="rounded"
-                          />
-                          <span className="text-sm">{p.berat_kg} kg</span>
-                          <span className="text-xs text-[var(--color-text-muted)]">({p.id.slice(0, 8)})</span>
-                        </label>
-                      ))}
+                <div>
+                  <label className="block text-sm font-medium mb-1.5">Pilih Hasil Panen</label>
+                  {loadingData ? (
+                    <div className="border border-[var(--color-border)] rounded-lg p-3 text-sm text-[var(--color-text-muted)]">
+                      Memuat hasil panen siap angkut...
                     </div>
+                  ) : panenList.length > 0 ? (
+                    <div className="max-h-64 overflow-y-auto border border-[var(--color-border)] rounded-lg p-2 space-y-2">
+                      {panenList.map((p) => {
+                        const selected = selectedPanen.includes(p.id);
+                        return (
+                          <label
+                            key={p.id}
+                            className="flex items-start gap-3 px-3 py-2 rounded hover:bg-[var(--color-border-light)] cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => togglePanen(p.id)}
+                              className="rounded mt-1"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium">{p.berat_kg} kg</span>
+                                <span className="text-[11px] rounded-full bg-green-50 text-green-700 px-2 py-0.5">
+                                  {p.status || "APPROVED"}
+                                </span>
+                              </span>
+                              <span className="block text-xs text-[var(--color-text-muted)] mt-0.5">
+                                {formatDate(p.tanggal_panen)} · Buruh {p.buruh_id?.slice(0, 8) || "-"} · Panen {p.id.slice(0, 8)}
+                              </span>
+                              {p.berita_hasil_panen && (
+                                <span className="block text-xs text-[var(--color-text-muted)] truncate mt-0.5">
+                                  {p.berita_hasil_panen}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="border border-amber-200 bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
+                      Belum ada Hasil Panen APPROVED yang siap angkut. Buruh harus submit panen, lalu Mandor approve panen sebelum Pengiriman bisa dibuat.
+                    </div>
+                  )}
+                </div>
+
+                {selectedPanen.length > 0 && (
+                  <div className="rounded-lg bg-[var(--color-border-light)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+                    {selectedPanen.length} hasil panen dipilih dari daftar siap angkut. Setelah pengiriman dibuat, hasil panen ini tidak muncul lagi untuk pengiriman lain.
                   </div>
                 )}
-
-                {/* Catatan */}
-                <div>
-                  <label className="block text-sm font-medium mb-1.5">Catatan Tambahan (Opsional)</label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Contoh: Kondisi jalan licin, estimasi tiba diperpanjang..."
-                    className="w-full rounded-lg border border-[var(--color-border)] px-4 py-2.5 text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/50"
-                  />
-                </div>
 
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || loadingData || !canSubmit}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] transition-colors disabled:opacity-50"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -196,15 +251,15 @@ export default function TambahPengirimanPage() {
               <ul className="space-y-3 text-sm text-[var(--color-text-muted)]">
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] mt-1.5 shrink-0" />
-                  Data pengiriman akan langsung disinkronisasi dengan portal Payroll supir.
+                  Pengiriman hanya bisa dibuat dari Hasil Panen yang sudah APPROVED dan belum pernah dipakai pengiriman.
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] mt-1.5 shrink-0" />
-                  Pastikan &ldquo;Total Kg&rdquo; sesuai dengan surat jalan resmi.
+                  Supir yang muncul hanya Supir yang ditempatkan Admin di Kebun yang sama dengan Mandor.
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] mt-1.5 shrink-0" />
-                  Admin akan menerima notifikasi otomatis setelah data diverifikasi.
+                  Total berat satu pengiriman dibatasi maksimal {MAX_PENGIRIMAN_KG} kg.
                 </li>
               </ul>
             </div>

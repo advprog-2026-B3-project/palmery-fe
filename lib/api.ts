@@ -373,8 +373,11 @@ export type ReadyHarvest = {
   id: string;
   berat_kg: number;
   kebun_id: string;
+  buruh_id?: string;
   mandor_id?: string;
+  tanggal_panen?: string;
   status?: string;
+  berita_hasil_panen?: string;
 };
 
 export type DriverOption = {
@@ -436,7 +439,13 @@ export async function getRiwayatPengirimanSupir(from: string, to: string): Promi
 }
 
 export async function getPengirimanById(id: string): Promise<Pengiriman> {
-  return readJson(await fetchManage(`/api/admin/pengiriman/${id}`), "Failed to fetch pengiriman");
+  const role = currentUserRole();
+  const path = role === "SUPIR"
+    ? `/api/supir/pengiriman/${id}`
+    : role === "MANDOR"
+      ? `/api/mandor/pengiriman/${id}`
+      : `/api/admin/pengiriman/${id}`;
+  return readJson(await fetchManage(path), "Failed to fetch pengiriman");
 }
 
 export async function getPendingPengiriman(mandor?: string, date?: string): Promise<Pengiriman[]> {

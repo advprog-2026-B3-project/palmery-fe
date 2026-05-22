@@ -7,6 +7,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/lib/useAuth";
 import {
   getPlantations,
+  getPlantationById,
   getUsersByIds,
   getWorkerAssignment,
   hasSubmittedHarvestToday,
@@ -60,7 +61,28 @@ export default function TambahPanenPage() {
         setForm((prev) => ({ ...prev, mandorId: assignment.mandorId }));
         const [mandorProfile] = await getUsersByIds([assignment.mandorId]).catch(() => []);
         setAssignedMandor(mandorProfile ?? null);
+        const plantationDetails = await Promise.all(
+          plantationData.map((plantation) => getPlantationById(plantation.id).catch(() => null)),
+        );
+        const eligiblePlantations = plantationDetails
+          .filter((plantation) => plantation?.assignedMandorIds.includes(assignment.mandorId))
+          .map((plantation) => ({
+            id: plantation!.id,
+            name: plantation!.name,
+            code: plantation!.code,
+            areaHa: plantation!.areaHa,
+            isActive: plantation!.isActive,
+          }));
+        setPlantations(eligiblePlantations);
+        setForm((prev) => ({
+          ...prev,
+          plantationId: eligiblePlantations.length === 1 ? eligiblePlantations[0].id : prev.plantationId,
+        }));
+        if (eligiblePlantations.length === 0) {
+          setOptionWarning("Mandor Anda belum ditempatkan ke Kebun. Hubungi Admin sebelum mencatat hasil panen.");
+        }
       } else {
+        setPlantations([]);
         setOptionWarning(
           "Anda belum ditempatkan ke Mandor manapun. Hubungi Admin untuk pengaturan penempatan sebelum mencatat hasil panen.",
         );
@@ -90,6 +112,14 @@ export default function TambahPanenPage() {
     setError(null);
 
     try {
+      if (!form.mandorId) {
+        setError("Anda belum ditempatkan ke Mandor. Hubungi Admin sebelum mencatat hasil panen.");
+        return;
+      }
+      if (!form.plantationId) {
+        setError("Pilih Kebun yang terhubung dengan Mandor Anda.");
+        return;
+      }
       const uploadedPhotos = photos.length > 0
         ? await Promise.all(photos.map((file) => uploadHarvestPhoto(file)))
         : [];
@@ -298,7 +328,7 @@ export default function TambahPanenPage() {
             <div className="mt-6 flex items-center gap-4">
               <button
                 type="submit"
-                disabled={loading || alreadySubmittedToday}
+                disabled={loading || loadingOptions || alreadySubmittedToday || !form.mandorId || plantations.length === 0}
                 className="inline-flex items-center gap-2 rounded-full bg-[var(--color-primary)] px-6 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
