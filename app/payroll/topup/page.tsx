@@ -15,13 +15,28 @@ export default function TopUpPage() {
   const [payMethod, setPayMethod] = useState("card");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ reference: string; amountIdr: number } | null>(null);
+  const [success, setSuccess] = useState<{ reference: string; amountIdr: number; gatewayUrl?: string } | null>(null);
 
   const amountNum = parseFloat(amount) || 0;
   const amountIdr = amountNum * 10000;
   const tax = Math.round(amountIdr * 0.11);
   const subtotal = amountIdr - tax;
   const total = amountIdr;
+
+  function resolvePaymentMethod(method: string): string {
+    switch (method) {
+      case "card":
+        return "credit_card";
+      case "bank":
+        return "bca_va";
+      case "ewallet":
+        return "gopay";
+      case "qris":
+        return "qris";
+      default:
+        return "credit_card";
+    }
+  }
 
   async function handleCheckout(e: React.FormEvent) {
     e.preventDefault();
@@ -31,8 +46,12 @@ export default function TopUpPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await createTopUp(authUser.sub, amountNum);
-      setSuccess({ reference: result.reference, amountIdr: result.amountRupiah ?? total });
+      const result = await createTopUp(authUser.sub, amountNum, resolvePaymentMethod(payMethod));
+      setSuccess({
+        reference: result.reference,
+        amountIdr: result.amountRupiah ?? total,
+        gatewayUrl: result.gatewayUrl,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed");
     } finally {
@@ -89,11 +108,19 @@ export default function TopUpPage() {
                     <span className="font-medium text-[var(--color-primary)]">Rp {success.amountIdr.toLocaleString("id-ID")}</span>
                   </div>
                 </div>
+                {success.gatewayUrl && (
+                  <a
+                    href={success.gatewayUrl}
+                    className="mb-3 inline-flex w-full items-center justify-center rounded-full bg-[var(--color-primary)] px-6 py-3 text-sm font-medium text-white hover:bg-[var(--color-primary-light)]"
+                  >
+                    Lanjutkan Pembayaran
+                  </a>
+                )}
                 <button
                   onClick={() => router.push("/payroll")}
-                  className="w-full rounded-full bg-[var(--color-primary)] px-6 py-3 text-sm font-medium text-white hover:bg-[var(--color-primary-light)] mb-3"
+                  className="w-full rounded-full border border-[var(--color-border)] px-6 py-3 text-sm font-medium text-[var(--color-text)] hover:bg-[var(--color-border-light)] mb-3"
                 >
-                  Return Home
+                  Kembali ke Payroll
                 </button>
                 <button className="text-sm text-[var(--color-text-muted)] hover:underline">
                   📥 Download Receipt (PDF)

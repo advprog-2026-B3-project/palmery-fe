@@ -633,12 +633,14 @@ export type PayrollSummary = {
   id: number;
   userId: string;
   type: string;
-  status: string;
+  status: "PENDING" | "ACCEPTED" | "APPROVED" | "REJECTED" | string;
   amount: number;
   quantityKg: number;
   ratePerKg: number;
   description: string;
   calculationDetail?: string;
+  sourceType?: "HASIL_PANEN" | "PENGIRIMAN" | string;
+  sourceId?: string;
   rejectionReason?: string;
   createdAt: string;
   processedAt?: string;
@@ -731,12 +733,17 @@ export type TopUpResult = {
   paidAt?: string;
 };
 
-export async function createTopUp(_adminUserId: string, amountSawitDollar: number): Promise<TopUpResult> {
+export async function createTopUp(
+  _adminUserId: string,
+  amountSawitDollar: number,
+  paymentMethod: string,
+): Promise<TopUpResult> {
   return readJson(
     await fetchPayment("/api/payments/create", {
       method: "POST",
       body: JSON.stringify({
         amountRupiah: amountSawitDollar * 10000,
+        paymentMethod,
       }),
     }),
     "Failed to create top-up",

@@ -9,7 +9,7 @@ To run the development server:
 ```bash
 pnpm dev
 ```
-It should run on localhost:3000
+It should run on localhost:3001
 
 ## Debug Integration Page
 
@@ -21,7 +21,7 @@ cp .env.sample .env.local
 
 The debug UI is available at:
 
-- `http://localhost:3000/debug`
+- `http://localhost:3001/debug`
 
 Default backend targets:
 

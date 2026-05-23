@@ -8,4 +8,4 @@ services:
         NEXT_PUBLIC_PAYMENT_API_BASE_URL: ${NEXT_PUBLIC_PAYMENT_API_BASE_URL:-http://localhost:8082}
     container_name: palmery-fe
     ports:
-      - "3000:3000"
+      - "3001:3001"

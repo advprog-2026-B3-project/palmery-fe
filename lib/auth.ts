@@ -1,4 +1,6 @@
-const AUTH_FRONTEND_URL = process.env.NEXT_PUBLIC_AUTH_FRONTEND_URL ?? "http://localhost:3000";
+const AUTH_FRONTEND_URL = process.env.NEXT_PUBLIC_AUTH_FRONTEND_URL
+  ?? process.env.NEXT_PUBLIC_AUTH_APP_URL
+  ?? "http://localhost:3000";
 const APP_CALLBACK_URL = process.env.NEXT_PUBLIC_APP_CALLBACK_URL ?? "http://localhost:3001/auth/callback";
 
 export type UserRole = "ADMIN" | "MANDOR" | "BURUH" | "SUPIR";
